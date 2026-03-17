@@ -219,6 +219,12 @@ def main():
         "lifetime": lifetime,
     }
 
+    # Add monthly aggregates keyed by "YYYY-MM" (required by dashboard)
+    monthly_keyed = {}
+    for m_key, m_data in sorted(monthly_all.items()):
+        monthly_keyed[m_key] = make_period_data(m_data)
+    output["monthly"] = monthly_keyed
+
     # Write both files
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w") as f:
