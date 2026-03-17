@@ -542,6 +542,10 @@
     // ══════════════════════════════════════════════════
     // PVSYST HELPERS
     // ══════════════════════════════════════════════════
+
+    // System commissioning: 2026-01-21 11:00 SAST
+    const SYS_START = { year: 2026, month: 1, day: 21, hour: 11 };
+
     // Degradation: base year 2026 = factor 1.0, then 0.55%/yr
     function degradationFactor(year) {
         if (!pvsyst) return 1;
@@ -553,6 +557,14 @@
     function getPvsystDay(mmdd) {
         if (!pvsyst?.daily_hourly) return new Array(24).fill(0);
         return pvsyst.daily_hourly[mmdd] || pvsyst.daily_hourly['02-28'] || new Array(24).fill(0);
+    }
+
+    // Sum a single day's PVSyst hourly from fromHour to toHour (inclusive)
+    function sumPvsystDay(mmdd, fromHour, toHour) {
+        const hourly = getPvsystDay(mmdd);
+        let total = 0;
+        for (let h = (fromHour||0); h <= Math.min(toHour??23, 23); h++) total += hourly[h];
+        return total;
     }
 
     // Monthly hourly average: average each hour across all days in the month
@@ -577,11 +589,7 @@
         if (!pvsyst) return 0;
         const now = new Date();
         const mmdd = String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
-        const hourly = getPvsystDay(mmdd);
-        const factor = degradationFactor(now.getFullYear());
-        let total = 0;
-        for (let h = 0; h <= Math.min(currentHour, 23); h++) total += hourly[h];
-        return total * factor;
+        return sumPvsystDay(mmdd, 0, currentHour) * degradationFactor(now.getFullYear());
     }
 
     // Full day expected
@@ -589,24 +597,22 @@
         if (!pvsyst) return 0;
         const d = new Date(dateStr + 'T12:00:00');
         const mmdd = String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-        const hourly = getPvsystDay(mmdd);
-        return hourly.reduce((a,b) => a+b, 0) * degradationFactor(d.getFullYear());
+        return sumPvsystDay(mmdd) * degradationFactor(d.getFullYear());
     }
 
-    // Month expected: sum PVSyst for each day up to current day/hour
-    function calcMonthExpected(yr, mo, upToDay, upToHour) {
+    // Month expected: sum PVSyst for days fromDay..upToDay, with partial hour support
+    function calcMonthExpected(yr, mo, upToDay, upToHour, fromDay, fromHour) {
         if (!pvsyst) return 0;
         const factor = degradationFactor(yr);
         const mm = String(mo).padStart(2,'0');
+        const dStart = fromDay || 1;
+        const hStart = fromHour ?? 0;
         let total = 0;
-        for (let d = 1; d <= upToDay; d++) {
+        for (let d = dStart; d <= upToDay; d++) {
             const mmdd = mm + '-' + String(d).padStart(2,'0');
-            const hourly = getPvsystDay(mmdd);
-            if (d < upToDay) {
-                total += hourly.reduce((a,b) => a+b, 0);
-            } else {
-                for (let h = 0; h <= Math.min(upToHour, 23); h++) total += hourly[h];
-            }
+            const dayFromH = (d === dStart && hStart > 0) ? hStart : 0;
+            const dayToH   = (d === upToDay) ? Math.min(upToHour, 23) : 23;
+            total += sumPvsystDay(mmdd, dayFromH, dayToH);
         }
         return total * factor;
     }
@@ -618,14 +624,10 @@
         return (mt[String(mo)] || 0) * degradationFactor(yr);
     }
 
-    // Lifetime expected: sum all months across all operational years
+    // Lifetime expected: from system start (2026-01-21 11:00) to now
     function calcLifetimeExpected() {
-        if (!pvsyst || !D) return 0;
+        if (!pvsyst) return 0;
         const now = new Date();
-        const startDate = D.daily[0]?.date;
-        if (!startDate) return 0;
-        const startYr = parseInt(startDate.slice(0,4));
-        const startMo = parseInt(startDate.slice(5,7));
         const curYr = now.getFullYear();
         const curMo = now.getMonth() + 1;
         const curDay = now.getDate();
@@ -633,15 +635,25 @@
         const mt = pvsyst.monthly_totals_kwh || {};
         let total = 0;
 
-        for (let y = startYr; y <= curYr; y++) {
+        for (let y = SYS_START.year; y <= curYr; y++) {
             const factor = degradationFactor(y);
-            const mStart = (y === startYr) ? startMo : 1;
-            const mEnd = (y === curYr) ? curMo : 12;
+            const mStart = (y === SYS_START.year) ? SYS_START.month : 1;
+            const mEnd   = (y === curYr) ? curMo : 12;
+
             for (let m = mStart; m <= mEnd; m++) {
-                if (y === curYr && m === curMo) {
-                    // Partial month
-                    total += calcMonthExpected(y, m, curDay, curHour);
+                const isFirstMonth = (y === SYS_START.year && m === SYS_START.month);
+                const isCurrentMonth = (y === curYr && m === curMo);
+                const daysInMonth = new Date(y, m, 0).getDate();
+
+                if (isFirstMonth || isCurrentMonth) {
+                    // Partial month: respect system start and/or current time
+                    const fDay  = isFirstMonth ? SYS_START.day : 1;
+                    const fHour = isFirstMonth ? SYS_START.hour : 0;
+                    const tDay  = isCurrentMonth ? curDay : daysInMonth;
+                    const tHour = isCurrentMonth ? curHour : 23;
+                    total += calcMonthExpected(y, m, tDay, tHour, fDay, fHour);
                 } else {
+                    // Full completed month
                     total += (mt[String(m)] || 0) * factor;
                 }
             }
@@ -989,7 +1001,9 @@
 
         // Info bar
         document.getElementById('infoLastUpdate').textContent = D.last_updated || '--';
-        document.getElementById('infoDaysActive').textContent = D.days_active || D.daily.length;
+        const startMs = new Date(SYS_START.year, SYS_START.month - 1, SYS_START.day).getTime();
+        const daysActive = Math.floor((Date.now() - startMs) / 86400000);
+        document.getElementById('infoDaysActive').textContent = daysActive > 0 ? daysActive : D.days_active;
 
         renderOvChart();
     }
