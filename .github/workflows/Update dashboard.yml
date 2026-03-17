@@ -2,15 +2,12 @@ name: Update Solar Dashboard
 
 on:
   schedule:
-    # Run every 30 minutes during daylight hours (SAST = UTC+2)
-    # 04:00-18:00 SAST = 02:00-16:00 UTC
+    # Every 30 min during daylight: 04:00-18:00 SAST = 02:00-16:00 UTC
     - cron: '*/30 2-16 * * *'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   update-data:
@@ -38,37 +35,27 @@ jobs:
           VRM_PASSWORD: ${{ secrets.VRM_PASSWORD }}
         run: python scraper.py
 
-      - name: Append Yesterday to Lifetime (if available)
-        run: |
-          YESTERDAY=$(date -d "yesterday" +%Y%m%d 2>/dev/null || date -v-1d +%Y%m%d)
-          YESTERDAY_FILE="downloads/14PlanestreetJBay_kwh_${YESTERDAY}.xlsx"
-
-          if [ -f "$YESTERDAY_FILE" ]; then
-            echo "Appending yesterday's data to lifetime..."
-            python update_lifetime.py \
-              --daily "$YESTERDAY_FILE" \
-              --lifetime "data/Monthly_Data_Excluding_today.xlsx"
-          else
-            echo "No yesterday file found (${YESTERDAY_FILE}), skipping lifetime update"
-          fi
-
       - name: Process Data
         run: |
-          # Find today's downloaded file
           TODAY=$(date +%Y%m%d)
+          YESTERDAY=$(date -d "yesterday" +%Y%m%d 2>/dev/null || date -v-1d +%Y%m%d)
           TODAY_FILE="downloads/14PlanestreetJBay_kwh_${TODAY}.xlsx"
+          YESTERDAY_FILE="downloads/14PlanestreetJBay_kwh_${YESTERDAY}.xlsx"
 
           if [ ! -f "$TODAY_FILE" ]; then
             echo "ERROR: Today's file not found: $TODAY_FILE"
-            ls -la downloads/
+            ls -la downloads/ 2>/dev/null || echo "(no downloads dir)"
             exit 1
           fi
 
-          echo "Processing: $TODAY_FILE"
-          python process_data.py \
-            --today "$TODAY_FILE" \
-            --lifetime "data/Monthly_Data_Excluding_today.xlsx" \
-            --output "data/dashboard_data.json"
+          # Build the command — append yesterday if file exists
+          CMD="python process_data.py --today $TODAY_FILE --lifetime data/Monthly_Data_Excluding_today.xlsx --output data/dashboard_data.json"
+          if [ -f "$YESTERDAY_FILE" ]; then
+            CMD="$CMD --append-yesterday $YESTERDAY_FILE"
+          fi
+
+          echo "Running: $CMD"
+          $CMD
 
       - name: Fetch Irradiation Data
         run: |
