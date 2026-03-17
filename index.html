@@ -1946,7 +1946,8 @@
         // AUTH (uses SHA-256 hashed credentials)
         // ══════════════════════════════════════════════════
         async function loadCredentials() {
-            try { const r = await fetch(cacheBust('config/client_credentials.json')); if (r.ok) credentials = await r.json(); } catch(e) {}
+            // Auth disabled for this site
+            credentials = null;
         }
 
         async function hashStr(str) {
