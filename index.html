@@ -1178,8 +1178,9 @@
                         <div class="slab-status" id="dl-pv-status"></div>
                         <div class="slab-perf"><div class="slab-perf-item"><div class="perf-label">PV Performance</div><div class="perf-value" id="dl-pv-perf">--%</div></div></div>
                         <div class="flow-lines">
-                            <div class="flow-line"><span class="fl-label">⚡ to Load</span><span class="fl-value" id="dl-pv-toload">-- kWh</span></div>
-                            <div class="flow-line"><span class="fl-label">⚡ to Grid</span><span class="fl-value" id="dl-pv-togrid">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">☀ to Load</span><span class="fl-value" id="dl-pv-toload">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">🔋 to Battery</span><span class="fl-value" id="dl-pv-tobatt">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">↗ to Grid</span><span class="fl-value" id="dl-pv-togrid">-- kWh</span></div>
                         </div>
                     </div>
 
@@ -1413,8 +1414,9 @@
                         <div class="slab-status" id="lt-pv-status"></div>
                         <div class="slab-perf"><div class="slab-perf-item"><div class="perf-label">PV Performance</div><div class="perf-value" id="lt-pv-perf">--%</div></div></div>
                         <div class="flow-lines">
-                            <div class="flow-line"><span class="fl-label">⚡ to Load</span><span class="fl-value" id="lt-pv-toload">-- kWh</span></div>
-                            <div class="flow-line"><span class="fl-label">⚡ to Grid</span><span class="fl-value" id="lt-pv-togrid">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">☀ to Load</span><span class="fl-value" id="lt-pv-toload">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">🔋 to Battery</span><span class="fl-value" id="lt-pv-tobatt">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">↗ to Grid</span><span class="fl-value" id="lt-pv-togrid">-- kWh</span></div>
                         </div>
                     </div>
                     <div class="slab">
@@ -1560,19 +1562,19 @@
                 <!-- PEAK / STANDARD / OFF-PEAK SAVINGS -->
                 <div class="fin-tou-grid">
                     <div class="slab" style="text-align:center;">
-                        <div class="slab-label"><span class="tou-pill peak" style="font-size:0.9em;">Peak</span></div>
+                        <div class="slab-label"><span class="tou-pill off-peak" style="font-size:0.9em;">Blocks 1+2</span></div>
                         <div class="slab-value" style="font-size:1.8em;"><span style="color:#fff;">R </span><span id="fin-peak-savings">--</span></div>
-                        <div class="slab-expected">PV: <span class="exp-val" id="fin-peak-pv">R--</span> · Export: <span class="exp-val" id="fin-peak-exp">R--</span></div>
+                        <div class="slab-expected">Block 1: <span class="exp-val" id="fin-peak-pv">R--</span> · Block 2: <span class="exp-val" id="fin-peak-exp">R--</span></div>
                     </div>
                     <div class="slab" style="text-align:center;">
-                        <div class="slab-label"><span class="tou-pill standard" style="font-size:0.9em;">Standard</span></div>
+                        <div class="slab-label"><span class="tou-pill standard" style="font-size:0.9em;">Blocks 3+4</span></div>
                         <div class="slab-value" style="font-size:1.8em;"><span style="color:#fff;">R </span><span id="fin-std-savings">--</span></div>
-                        <div class="slab-expected">PV: <span class="exp-val" id="fin-std-pv">R--</span> · Export: <span class="exp-val" id="fin-std-exp">R--</span></div>
+                        <div class="slab-expected">Block 3: <span class="exp-val" id="fin-std-pv">R--</span> · Block 4: <span class="exp-val" id="fin-std-exp">R--</span></div>
                     </div>
                     <div class="slab" style="text-align:center;">
-                        <div class="slab-label"><span class="tou-pill off-peak" style="font-size:0.9em;">Off-Peak</span></div>
+                        <div class="slab-label"><span class="tou-pill peak" style="font-size:0.9em;">Export Income</span></div>
                         <div class="slab-value" style="font-size:1.8em;"><span style="color:#fff;">R </span><span id="fin-offpk-savings">--</span></div>
-                        <div class="slab-expected">PV: <span class="exp-val" id="fin-offpk-pv">R--</span> · Export: <span class="exp-val" id="fin-offpk-exp">R--</span></div>
+                        <div class="slab-expected"><span class="exp-val" id="fin-offpk-pv"></span><span class="exp-val" id="fin-offpk-exp"></span></div>
                     </div>
                 </div>
 
@@ -1583,7 +1585,7 @@
                     <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('fin-savchart')">✕</span>
                 <!-- MONTHLY SAVINGS CHART -->
                 <div class="chart-container">
-                    <h3>Monthly Savings by TOU Period</h3>
+                    <h3>Monthly Savings Breakdown</h3>
                     <div class="month-selector" style="margin-top:10px;">
                         <button class="lt-range-btn" onclick="setFinRange(3,this)">3M</button>
                         <button class="lt-range-btn" onclick="setFinRange(6,this)">6M</button>
@@ -1609,7 +1611,7 @@
                     <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('fin-genchart')">✕</span>
                 <!-- TOU GENERATION DISTRIBUTION -->
                 <div class="chart-container">
-                    <h3>TOU Generation Distribution</h3>
+                    <h3>Monthly Cost: With vs Without Solar</h3>
                     <div class="chart-legend-row" id="finGenLegend">
                         <div class="chart-legend-defaults">
                             <div class="chart-legend-item" data-fds="fg-peak" onclick="toggleFinDs('fg-peak')"><span class="legend-swatch" style="background:#ef4444;"></span>Peak</div>
@@ -2527,6 +2529,8 @@
                     pvHourly = rec.hourly.pv;
                     loadHourly = rec.hourly.load || new Array(24).fill(0);
                     gridHourly = rec.hourly.grid || new Array(24).fill(0);
+                    var battHourly = rec.hourly.batt || new Array(24).fill(0);
+                    var exportHourly = rec.hourly.export || new Array(24).fill(0);
                 } else {
                     // Distribute daily totals via PVSyst pattern
                     const dp = new Date(dateStr + 'T12:00:00');
@@ -3609,54 +3613,25 @@
         }
 
         function calcMonthTOUSavings(year, month, sc, exp, numDays, gridImport) {
-            if (!finConfig || !pvsyst) return null;
-            const fc = finConfig;
-            const r = fc.rates || {};
-            const s = fc.seasons || {};
-            const sched = fc.tou_schedule || {};
-            const ec = fc.export_credits || {};
-            const dailySC = sc / numDays;
-            const dailyExp = exp / numDays;
-            const dailyImport = (gridImport || 0) / numDays;
-            const factor = degradationFactor(year);
-            const mm = String(month).padStart(2,'0');
-            const pv = {peak:0,standard:0,off_peak:0,total:0};
-            const ex = {standard:0,off_peak:0,total:0};
-            const gen = {peak:0,standard:0,off_peak:0,total:0};
-            const util = {peak:0,standard:0,off_peak:0,total:0};
-            // Load pattern for distributing import across hours
-            const avgL = dashData.hourly?.avg_load || new Array(24).fill(1);
-            const loadTotal = avgL.reduce((a,b)=>a+b,0) || 1;
-            for (let d = 1; d <= numDays; d++) {
-                const dt = new Date(year, month-1, d);
-                const season = s[String(month)] || 'low_demand';
-                const wd = dt.getDay();
-                const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                const schedule = sched[season]?.[dayType] || [];
-                const mmdd = mm + '-' + String(d).padStart(2,'0');
-                const pattern = (pvsyst.daily_hourly || {})[mmdd] || new Array(24).fill(0);
-                const pTotal = pattern.reduce((a,b)=>a+b,0);
-                if (pTotal <= 0) continue;
-                for (let h = 0; h < 24; h++) {
-                    const frac = pattern[h] / pTotal;
-                    const loadFrac = avgL[h] / loadTotal;
-                    const period = schedule[h] || 'off_peak';
-                    const rate = r[season]?.[period] || 0;
-                    const credit = ec[period] || 0;
-                    // Generation per TOU period (SC + Export distributed by PV pattern)
-                    const genH = (dailySC + dailyExp) * frac;
-                    gen[period] += genH; gen.total += genH;
-                    // Utility cost: import distributed by load pattern × rate
-                    const impH = dailyImport * loadFrac;
-                    const utilH = impH * rate;
-                    util[period] += utilH; util.total += utilH;
-                    // PV savings
-                    const pvSav = dailySC * frac * rate;
-                    pv[period] += pvSav; pv.total += pvSav;
-                    if (credit > 0) { const exSav = dailyExp * frac * credit; ex[period] += exSav; ex.total += exSav; }
-                }
-            }
-            return {pv_savings: pv, export_savings: ex, generation: gen, utility_cost: util, total: pv.total + ex.total};
+            // Block tariff savings (replaces TOU)
+            if (typeof calcBlockSavings !== 'function') return null;
+            // Find the monthly load from dashData
+            const ym = year + '-' + String(month).padStart(2,'0');
+            const md = dashData.monthly?.[ym] || {};
+            const load = md['Consumption (kWh)'] || 0;
+            const imp = gridImport || md['Import (kWh)'] || 0;
+            const bs = calcBlockSavings(load, imp, exp);
+            // Return in format compatible with rendering functions
+            return {
+                pv_savings: {total: bs.pvSavings, block1: bs.blockSavings[0]?.cost||0, block2: bs.blockSavings[1]?.cost||0, block3: bs.blockSavings[2]?.cost||0, block4: bs.blockSavings[3]?.cost||0},
+                export_savings: {total: bs.exportIncome},
+                generation: {total: sc + exp},
+                utility_cost: {total: bs.withSolar},
+                total: bs.total,
+                blockSavings: bs.blockSavings,
+                withoutSolar: bs.withoutSolar,
+                withSolar: bs.withSolar
+            };
         }
 
         function renderMonthlyTab(ym) {
@@ -3752,21 +3727,17 @@
 
         function renderMonthlySavingsTable(sav) {
             const tbody = document.getElementById('monthlySavingsBody');
-            if (!sav) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">No data</td></tr>'; return; }
-            const periods = ['peak','standard','off_peak'];
-            const labels = {peak:'<span class="tou-pill peak">Peak</span>',standard:'<span class="tou-pill standard">Standard</span>',off_peak:'<span class="tou-pill off-peak">Off-Peak</span>'};
-            let html='', totGen=0, totUtil=0, totPvS=0, totExpS=0;
-            periods.forEach(p => {
-                const genV = sav.generation?.[p]||0;
-                const utilV = sav.utility_cost?.[p]||0;
-                const pvs = sav.pv_savings?.[p]||0;
-                const exs = sav.export_savings?.[p]||0;
-                const total = pvs+exs;
-                totGen+=genV; totUtil+=utilV; totPvS+=pvs; totExpS+=exs;
-                html += `<tr><td style="text-align:left">${labels[p]}</td><td>${fmt(genV)} kWh</td><td>R${fmt(utilV)}</td><td>R${fmt(pvs)}</td><td>R${fmt(exs)}</td><td>R${fmt(total)}</td></tr>`;
+            if (!sav || !sav.blockSavings) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">No savings data</td></tr>'; return; }
+            const labels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
+            let h='', totPvS=0;
+            sav.blockSavings.forEach((b,i) => {
+                totPvS += b.cost;
+                h += `<tr><td style="text-align:left">${labels[i]}</td><td>${fmtDec(b.kwh,1)} kWh</td><td>${(b.rate*100).toFixed(2)} c</td><td>R${fmt(b.cost)}</td><td></td><td>R${fmt(b.cost)}</td></tr>`;
             });
-            html += `<tr class="total-row"><td style="text-align:left">Total</td><td>${fmt(totGen)} kWh</td><td>R${fmt(totUtil)}</td><td>R${fmt(totPvS)}</td><td>R${fmt(totExpS)}</td><td>R${fmt(totPvS+totExpS)}</td></tr>`;
-            tbody.innerHTML = html;
+            const expInc = sav.export_savings?.total || 0;
+            if (expInc > 0) h += `<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td></td><td></td><td></td><td>R${fmt(expInc)}</td><td>R${fmt(expInc)}</td></tr>`;
+            h += `<tr class="total-row"><td style="text-align:left">Total</td><td></td><td></td><td>R${fmt(totPvS)}</td><td>R${fmt(expInc)}</td><td>R${fmt(sav.total)}</td></tr>`;
+            tbody.innerHTML = h;
         }
 
         function renderMonthlyDailyChart(ym, numDays, currentHour, isCurrentMonth, yr, mo) {
@@ -4334,81 +4305,71 @@
         }
 
         function renderFinancialTab() {
-            if (!dashData || !finConfig || !pvsyst) return;
+            if (!dashData) return;
             const monthly = dashData.monthly || {};
             finSortedMonths = Object.keys(monthly).sort();
+            if (!finSortedMonths.length) return;
 
             document.getElementById('financialStatus').textContent = 'Financial data: ' + finSortedMonths[0] + ' to ' + finSortedMonths[finSortedMonths.length-1] + ' (' + finSortedMonths.length + ' months)';
 
-            // Accumulate lifetime TOU savings and generation
-            const fc = finConfig;
-            const rates = fc.rates || {};
-            const ec = fc.export_credits || {};
-            const now = new Date();
-            const monthPattern = pvsyst.daily_hourly || {};
-            const avgL = dashData.hourly?.avg_load || new Array(24).fill(1);
-            const loadTotalH = avgL.reduce((a,b)=>a+b,0) || 1;
-
-            const totPV = {peak:0,standard:0,off_peak:0};
-            const totEX = {peak:0,standard:0,off_peak:0};
-            const totGen = {peak:0,standard:0,off_peak:0};
+            // Calculate block tariff savings per month
+            let grandTotal=0, blockTotals=[0,0,0,0], totalExp=0;
+            const peakArr=[], stdArr=[], offArr=[], cumArr=[];
+            let cum=0;
+            const withoutArr=[], withArr=[];
 
             finSortedMonths.forEach(ym => {
-                const md = dashData.monthly?.[ym];
-                if (!md) return;
-                const [yr,mm] = ym.split('-').map(Number);
-                const sc = md['Self-consumption (kWh)'] || 0;
-                const exp = md['Export (kWh)'] || 0;
-                const isCurrentMonth = yr === now.getFullYear() && mm === (now.getMonth()+1);
-                const days = isCurrentMonth ? now.getDate() : new Date(yr, mm, 0).getDate();
-                const season = (fc.seasons||{})[String(mm)] || 'low_demand';
-
-                let genHourly = new Array(24).fill(0);
-                for (let d = 1; d <= days; d++) {
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    for (let h = 0; h < 24; h++) genHourly[h] += dayP[h];
-                }
-                const genTotal = genHourly.reduce((a,b)=>a+b,0) || 1;
-
-                for (let d = 1; d <= days; d++) {
-                    const dt = new Date(yr, mm-1, d);
-                    const wd = dt.getDay();
-                    const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                    const schedule = (fc.tou_schedule||{})[season]?.[dayType] || [];
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    for (let h = 0; h < 24; h++) {
-                        const period = schedule[h] || 'off_peak';
-                        const hourGenFrac = dayP[h] / genTotal;
-                        const rate = rates[season]?.[period] || 0;
-                        const credit = ec[period] || 0;
-                        totPV[period] += sc * hourGenFrac * rate;
-                        totEX[period] += exp * hourGenFrac * credit;
-                        totGen[period] += (sc + exp) * hourGenFrac;
-                    }
-                }
+                const md = monthly[ym]; if(!md) return;
+                const load = md['Consumption (kWh)']||0;
+                const gi = md['Import (kWh)']||0;
+                const exp = md['Export (kWh)']||0;
+                const bs = calcBlockSavings(load, gi, exp);
+                grandTotal += bs.total;
+                totalExp += bs.exportIncome;
+                bs.blockSavings.forEach((b,i) => blockTotals[i] += b.cost);
+                // For chart: use PV savings and export
+                peakArr.push(bs.pvSavings); stdArr.push(bs.exportIncome);
+                cum += bs.total; cumArr.push(cum);
+                withoutArr.push(bs.withoutSolar); withArr.push(bs.withSolar);
             });
 
-            const totalPeak = totPV.peak + totEX.peak;
-            const totalStd = totPV.standard + totEX.standard;
-            const totalOffPk = totPV.off_peak + totEX.off_peak;
-            const grandTotal = totalPeak + totalStd + totalOffPk;
-
             document.getElementById('fin-total-savings').textContent = fmt(grandTotal);
-            document.getElementById('fin-peak-savings').textContent = fmt(totalPeak);
-            document.getElementById('fin-peak-pv').textContent = 'R' + fmt(totPV.peak);
-            document.getElementById('fin-peak-exp').textContent = 'R' + fmt(totEX.peak);
-            document.getElementById('fin-std-savings').textContent = fmt(totalStd);
-            document.getElementById('fin-std-pv').textContent = 'R' + fmt(totPV.standard);
-            document.getElementById('fin-std-exp').textContent = 'R' + fmt(totEX.standard);
-            document.getElementById('fin-offpk-savings').textContent = fmt(totalOffPk);
-            document.getElementById('fin-offpk-pv').textContent = 'R' + fmt(totPV.off_peak);
-            document.getElementById('fin-offpk-exp').textContent = 'R' + fmt(totEX.off_peak);
+            document.getElementById('fin-peak-savings').textContent = fmt(blockTotals[0]+blockTotals[1]);
+            document.getElementById('fin-peak-pv').textContent = 'R'+fmt(blockTotals[0]);
+            document.getElementById('fin-peak-exp').textContent = 'R'+fmt(blockTotals[1]);
+            document.getElementById('fin-std-savings').textContent = fmt(blockTotals[2]+blockTotals[3]);
+            document.getElementById('fin-std-pv').textContent = 'R'+fmt(blockTotals[2]);
+            document.getElementById('fin-std-exp').textContent = 'R'+fmt(blockTotals[3]);
+            document.getElementById('fin-offpk-savings').textContent = fmt(totalExp);
+            document.getElementById('fin-offpk-pv').textContent = '';
+            document.getElementById('fin-offpk-exp').textContent = 'R'+fmt(totalExp);
 
-            renderFinSavChart(finSortedMonths);
-            renderFinGenChart(finSortedMonths, totGen);
-        }
+            // Render charts directly
+            const cm = chartMobile();
+            const ctx1 = document.getElementById('finSavChart');
+            if (finSavChart) finSavChart.destroy();
+            finSavChart = new Chart(ctx1, {
+                type:'bar', data:{labels:finSortedMonths, datasets:[
+                    {label:'PV Savings',data:peakArr,backgroundColor:'rgba(74,222,128,0.6)',borderColor:'#4ade80',borderWidth:1},
+                    {label:'Export Income',data:stdArr,backgroundColor:'rgba(56,189,248,0.5)',borderColor:'#38bdf8',borderWidth:1},
+                    {label:'Cumulative',data:cumArr,type:'line',borderColor:'#ffd700',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#ffd700',yAxisID:'y1'}
+                ]},
+                options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+                    plugins:{legend:{labels:{color:'#aaa',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
+                    scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'},stacked:true,title:{display:cm.showAxisTitles,text:'Rands (R)',color:'#888'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:cm.showAxisTitles,text:'Cumulative (R)',color:'#ffd700'}}}}
+            });
+            // Cost comparison chart
+            const ctx2 = document.getElementById('finGenChart');
+            if (finGenChart) finGenChart.destroy();
+            finGenChart = new Chart(ctx2, {
+                type:'bar', data:{labels:finSortedMonths, datasets:[
+                    {label:'Without Solar',data:withoutArr,backgroundColor:'rgba(239,68,68,0.5)',borderColor:'#ef4444',borderWidth:1},
+                    {label:'With Solar',data:withArr,backgroundColor:'rgba(74,222,128,0.5)',borderColor:'#4ade80',borderWidth:1}
+                ]},
+                options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+                    plugins:{legend:{labels:{color:'#aaa',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
+                    scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'},title:{display:cm.showAxisTitles,text:'Rands (R)',color:'#888'}}}}
+            });
 
         function renderFinSavChart(sortedMonths) {
             const ctx = document.getElementById('finSavChart');
