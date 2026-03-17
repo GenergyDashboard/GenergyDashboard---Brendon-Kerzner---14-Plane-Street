@@ -1214,7 +1214,7 @@
                         <table class="env-table" id="dailySavingsTable">
                             <thead>
                                 <tr>
-                                    <th>TOU Period</th>
+                                    <th>Block</th>
                                     <th>Generation</th>
                                     <th>Utility Cost</th>
                                     <th>PV Savings</th>
@@ -1325,7 +1325,7 @@
                     <h3>Savings Breakdown</h3>
                     <div class="env-table-wrap">
                         <table class="env-table">
-                            <thead><tr><th>TOU Period</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
+                            <thead><tr><th>Block</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
                             <tbody id="monthlySavingsBody"></tbody>
                         </table>
                     </div>
@@ -1452,7 +1452,7 @@
                     <h3>Lifetime Time of Use Financial Breakdown</h3>
                     <div class="env-table-wrap">
                         <table class="env-table">
-                            <thead><tr><th>TOU Period</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
+                            <thead><tr><th>Block</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
                             <tbody id="lifetimeSavingsBody"></tbody>
                         </table>
                     </div>
@@ -1624,7 +1624,7 @@
                     <div class="daily-savings-table" style="margin-top:20px;">
                         <div class="env-table-wrap">
                             <table class="env-table">
-                                <thead><tr><th>TOU Period</th><th>Generation (kWh)</th><th>% of Total</th></tr></thead>
+                                <thead><tr><th>Block</th><th>Generation (kWh)</th><th>% of Total</th></tr></thead>
                                 <tbody id="finGenTableBody"></tbody>
                             </table>
                         </div>
@@ -3998,75 +3998,22 @@
 
         function renderLifetimeSavingsTable(sortedMonths) {
             const tbody = document.getElementById('lifetimeSavingsBody');
-            if (!finConfig || !pvsyst) { tbody.innerHTML = '<tr><td colspan="6">Financial config not loaded</td></tr>'; return; }
-            const fc = finConfig;
-            const rates = fc.rates || {};
-            const totals = {peak:{gen:0,util:0,pvs:0,exs:0},standard:{gen:0,util:0,pvs:0,exs:0},off_peak:{gen:0,util:0,pvs:0,exs:0}};
-
+            const monthly = dashData.monthly || {};
+            let ltBT = [0,0,0,0], ltExpTotal = 0;
             sortedMonths.forEach(ym => {
-                const md = dashData.monthly?.[ym];
-                if (!md) return;
-                const [yr,mm] = ym.split('-').map(Number);
-                const sc = md['Self-consumption (kWh)'] || 0;
-                const exp = md['Export (kWh)'] || 0;
-                const imp = md['Import (kWh)'] || 0;
-                const daysInMonth = new Date(yr, mm, 0).getDate();
-                const now = new Date();
-                const isCurrentMonth = yr === now.getFullYear() && mm === (now.getMonth()+1);
-                const days = isCurrentMonth ? now.getDate() : daysInMonth;
-
-                // Distribute generation and import across TOU periods for this month
-                const season = (fc.seasons||{})[String(mm)] || 'low_demand';
-                // Average across weekdays/weekends for the month
-                const mt = pvsyst.monthly_totals_kwh || {};
-                const monthPattern = (pvsyst.daily_hourly || {});
-                // Sum hourly patterns for all days
-                let genHourly = new Array(24).fill(0);
-                let loadHourly = new Array(24).fill(0);
-                const avgL = dashData.hourly?.avg_load || new Array(24).fill(1);
-                for (let d = 1; d <= days; d++) {
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = (monthPattern[mmdd] || new Array(24).fill(0));
-                    for (let h = 0; h < 24; h++) { genHourly[h] += dayP[h]; loadHourly[h] += avgL[h]; }
-                }
-                const genTotal = genHourly.reduce((a,b)=>a+b,0) || 1;
-                const loadTotal = loadHourly.reduce((a,b)=>a+b,0) || 1;
-
-                // For each day, determine schedule and accumulate
-                for (let d = 1; d <= days; d++) {
-                    const dt = new Date(yr, mm-1, d);
-                    const wd = dt.getDay();
-                    const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                    const schedule = (fc.tou_schedule||{})[season]?.[dayType] || [];
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = (monthPattern[mmdd] || new Array(24).fill(0));
-                    const dayPTotal = dayP.reduce((a,b)=>a+b,0) || 1;
-                    const dayGenFrac = dayPTotal / genTotal;
-
-                    for (let h = 0; h < 24; h++) {
-                        const period = schedule[h] || 'off_peak';
-                        const hourGenFrac = dayP[h] / genTotal;
-                        const hourLoadFrac = avgL[h] / loadTotal;
-                        const rate = rates[season]?.[period] || 0;
-                        const credit = (fc.export_credits||{})[period] || 0;
-                        totals[period].gen += (sc + exp) * hourGenFrac;
-                        totals[period].util += imp * hourLoadFrac * rate;
-                        totals[period].pvs += sc * hourGenFrac * rate;
-                        totals[period].exs += exp * hourGenFrac * credit;
-                    }
+                const md = monthly[ym]; if(!md) return;
+                const load = md['Consumption (kWh)']||0, gi = md['Import (kWh)']||0, exp = md['Export (kWh)']||0;
+                if (typeof calcBlockSavings === 'function') {
+                    const bs = calcBlockSavings(load, gi, exp);
+                    bs.blockSavings.forEach((b,i) => ltBT[i] += b.cost);
+                    ltExpTotal += bs.exportIncome;
                 }
             });
-
-            const periods = ['peak','standard','off_peak'];
-            const labels = {peak:'<span class="tou-pill peak">Peak</span>',standard:'<span class="tou-pill standard">Standard</span>',off_peak:'<span class="tou-pill off-peak">Off-Peak</span>'};
-            let tG=0,tU=0,tP=0,tE=0;
-            let html = '';
-            periods.forEach(p => {
-                const g=totals[p].gen, u=totals[p].util, ps=totals[p].pvs, es=totals[p].exs;
-                tG+=g; tU+=u; tP+=ps; tE+=es;
-                html += `<tr><td style="text-align:left">${labels[p]}</td><td>${fmt(g)} kWh</td><td>R${fmt(u)}</td><td>R${fmt(ps)}</td><td>R${fmt(es)}</td><td>R${fmt(ps+es)}</td></tr>`;
-            });
-            html += `<tr class="total-row"><td style="text-align:left">Total</td><td>${fmt(tG)} kWh</td><td>R${fmt(tU)}</td><td>R${fmt(tP)}</td><td>R${fmt(tE)}</td><td>R${fmt(tP+tE)}</td></tr>`;
+            const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
+            let html = '', ltPvTotal = 0;
+            ltBT.forEach((cost,i) => { ltPvTotal += cost; html += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td></td><td>'+(BLOCK_TARIFF[i].rate*100).toFixed(2)+' c</td><td>R'+fmt(cost)+'</td><td></td><td>R'+fmt(cost)+'</td></tr>'; });
+            if (ltExpTotal > 0) html += '<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td></td><td></td><td></td><td>R'+fmt(ltExpTotal)+'</td><td>R'+fmt(ltExpTotal)+'</td></tr>';
+            html += '<tr class="total-row"><td style="text-align:left">Total</td><td></td><td></td><td>R'+fmt(ltPvTotal)+'</td><td>R'+fmt(ltExpTotal)+'</td><td>R'+fmt(ltPvTotal+ltExpTotal)+'</td></tr>';
             tbody.innerHTML = html;
         }
 
@@ -4371,192 +4318,15 @@
                     scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'},title:{display:cm.showAxisTitles,text:'Rands (R)',color:'#888'}}}}
             });
 
-        function renderFinSavChart(sortedMonths) {
-            const ctx = document.getElementById('finSavChart');
-            if (!ctx || !finConfig || !pvsyst) return;
-            const displayMonths = finRange > 0 ? sortedMonths.slice(-finRange) : sortedMonths;
-            const fc = finConfig;
-            const rates = fc.rates || {};
-            const ec = fc.export_credits || {};
-            const monthPattern = pvsyst.daily_hourly || {};
-            const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            const now = new Date();
-            const labels = [], peakArr = [], stdArr = [], offArr = [], cumArr = [];
-
-            // Build cumulative from ALL months, then slice for display
-            const allPeak = [], allStd = [], allOff = [];
-            sortedMonths.forEach(ym => {
-                const md = dashData.monthly?.[ym];
-                if (!md) return;
-                const [yr,mm] = ym.split('-').map(Number);
-                const sc = md['Self-consumption (kWh)'] || 0;
-                const exp = md['Export (kWh)'] || 0;
-                const isCurrentMonth = yr === now.getFullYear() && mm === (now.getMonth()+1);
-                const days = isCurrentMonth ? now.getDate() : new Date(yr, mm, 0).getDate();
-                const season = (fc.seasons||{})[String(mm)] || 'low_demand';
-
-                let mPeak = 0, mStd = 0, mOff = 0;
-                let genHourly = new Array(24).fill(0);
-                for (let d = 1; d <= days; d++) {
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    for (let h = 0; h < 24; h++) genHourly[h] += dayP[h];
-                }
-                const genTotal = genHourly.reduce((a,b)=>a+b,0) || 1;
-
-                for (let d = 1; d <= days; d++) {
-                    const dt = new Date(yr, mm-1, d);
-                    const wd = dt.getDay();
-                    const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                    const schedule = (fc.tou_schedule||{})[season]?.[dayType] || [];
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    for (let h = 0; h < 24; h++) {
-                        const period = schedule[h] || 'off_peak';
-                        const rate = rates[season]?.[period] || 0;
-                        const credit = ec[period] || 0;
-                        const hourFrac = dayP[h] / genTotal;
-                        const sav = sc * hourFrac * rate + exp * hourFrac * credit;
-                        if (period === 'peak') mPeak += sav;
-                        else if (period === 'standard') mStd += sav;
-                        else mOff += sav;
-                    }
-                }
-                allPeak.push(mPeak); allStd.push(mStd); allOff.push(mOff);
-            });
-
-            // Cumulative from full dataset
-            const allCum = [];
-            let runCum = 0;
-            for (let i = 0; i < allPeak.length; i++) {
-                runCum += allPeak[i] + allStd[i] + allOff[i];
-                allCum.push(runCum);
-            }
-
-            // Slice for display
-            const offset = sortedMonths.length - displayMonths.length;
-            displayMonths.forEach((ym, i) => {
-                const [yr,mm] = ym.split('-').map(Number);
-                labels.push(monthNames[mm] + ' ' + String(yr).slice(2));
-                peakArr.push(Math.round(allPeak[offset + i]));
-                stdArr.push(Math.round(allStd[offset + i]));
-                offArr.push(Math.round(allOff[offset + i]));
-                cumArr.push(Math.round(allCum[offset + i]));
-            });
-
-            const fmtTick = v => 'R' + String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-            if (finSavChart) finSavChart.destroy();
-            finSavChart = new Chart(ctx, {
-                data: { labels,
-                    datasets: [
-                        { type:'bar', label:'Peak Savings (R)', data:peakArr, backgroundColor:'rgba(239,68,68,0.7)', borderColor:'#ef4444', borderWidth:1, borderRadius:3, stack:'sav', hidden:!finDsVis['f-peak'] },
-                        { type:'bar', label:'Standard Savings (R)', data:stdArr, backgroundColor:'rgba(245,158,11,0.7)', borderColor:'#f59e0b', borderWidth:1, borderRadius:3, stack:'sav', hidden:!finDsVis['f-std'] },
-                        { type:'bar', label:'Off-Peak Savings (R)', data:offArr, backgroundColor:'rgba(16,185,129,0.7)', borderColor:'#10b981', borderWidth:1, borderRadius:3, stack:'sav', hidden:!finDsVis['f-offpk'] },
-                        { type:'line', label:'Cumulative Savings (R)', data:cumArr, borderColor:'#ffd700', backgroundColor:'rgba(255,215,0,0.1)', borderWidth:2, pointRadius:2, pointBackgroundColor:'#ffd700', tension:0.3, fill:false, yAxisID:'y2', hidden:!finDsVis['f-cumSav'], order:0 }
-                    ]
-                },
-                options: {
-                    responsive:true, maintainAspectRatio:false,
-                    interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{const v=Math.round(c.parsed.y);return c.dataset.label+': R '+String(v).replace(/\B(?=(\d{3})+(?!\d))/g,' ')}}}},
-                    scales:{
-                        x:{stacked:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{stacked:true,beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Savings (R)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
-                        y2:{position:'right',beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Cumulative (R)',color:'#ffd700',font:{size:chartMobile().titleFont}},grid:{drawOnChartArea:false},ticks:{color:'#ffd700',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}}
-                    }
-                }
-            });
         }
 
-        function renderFinGenChart(sortedMonths, lifetimeGen) {
-            const ctx = document.getElementById('finGenChart');
-            const tbody = document.getElementById('finGenTableBody');
-            if (!ctx || !finConfig || !pvsyst) return;
-            const displayMonths = finRange > 0 ? sortedMonths.slice(-finRange) : sortedMonths;
-            const fc = finConfig;
-            const monthPattern = pvsyst.daily_hourly || {};
-            const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            const now = new Date();
-            const labels = [], peakArr = [], stdArr = [], offArr = [];
-
-            displayMonths.forEach(ym => {
-                const md = dashData.monthly?.[ym];
-                if (!md) return;
-                const [yr,mm] = ym.split('-').map(Number);
-                const sc = md['Self-consumption (kWh)'] || 0;
-                const exp = md['Export (kWh)'] || 0;
-                const pvTotal = sc + exp;
-                const isCurrentMonth = yr === now.getFullYear() && mm === (now.getMonth()+1);
-                const days = isCurrentMonth ? now.getDate() : new Date(yr, mm, 0).getDate();
-                const season = (fc.seasons||{})[String(mm)] || 'low_demand';
-
-                let genHourly = new Array(24).fill(0);
-                for (let d = 1; d <= days; d++) {
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    for (let h = 0; h < 24; h++) genHourly[h] += dayP[h];
-                }
-                const genTotal = genHourly.reduce((a,b)=>a+b,0) || 1;
-
-                let mPk = 0, mSt = 0, mOf = 0;
-                for (let d = 1; d <= days; d++) {
-                    const dt = new Date(yr, mm-1, d);
-                    const wd = dt.getDay();
-                    const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                    const schedule = (fc.tou_schedule||{})[season]?.[dayType] || [];
-                    const mmdd = String(mm).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    for (let h = 0; h < 24; h++) {
-                        const period = schedule[h] || 'off_peak';
-                        const frac = dayP[h] / genTotal;
-                        if (period === 'peak') mPk += pvTotal * frac;
-                        else if (period === 'standard') mSt += pvTotal * frac;
-                        else mOf += pvTotal * frac;
-                    }
-                }
-                labels.push(monthNames[mm] + ' ' + String(yr).slice(2));
-                peakArr.push(Math.round(mPk));
-                stdArr.push(Math.round(mSt));
-                offArr.push(Math.round(mOf));
-            });
-
-            if (finGenChart) finGenChart.destroy();
-            finGenChart = new Chart(ctx, {
-                type: 'bar',
-                data: { labels,
-                    datasets: [
-                        { label:'Peak (kWh)', data:peakArr, backgroundColor:'rgba(239,68,68,0.7)', borderColor:'#ef4444', borderWidth:1, borderRadius:3, stack:'gen', hidden:!finDsVis['fg-peak'] },
-                        { label:'Standard (kWh)', data:stdArr, backgroundColor:'rgba(245,158,11,0.7)', borderColor:'#f59e0b', borderWidth:1, borderRadius:3, stack:'gen', hidden:!finDsVis['fg-std'] },
-                        { label:'Off-Peak (kWh)', data:offArr, backgroundColor:'rgba(16,185,129,0.7)', borderColor:'#10b981', borderWidth:1, borderRadius:3, stack:'gen', hidden:!finDsVis['fg-offpk'] }
-                    ]
-                },
-                options: {
-                    responsive:true, maintainAspectRatio:false,
-                    interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)+' kWh'}}},
-                    scales:{
-                        x:{stacked:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{stacked:true,beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Generation (kWh)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:v=>fmt(v)}}
-                    }
-                }
-            });
-
-            // Data table
-            if (tbody && lifetimeGen) {
-                const tG = lifetimeGen.peak + lifetimeGen.standard + lifetimeGen.off_peak;
-                const pctOf = v => tG > 0 ? (v / tG * 100).toFixed(1) + '%' : '0%';
-                tbody.innerHTML = `
-                    <tr><td><span class="tou-pill peak">Peak</span></td><td>${fmt(lifetimeGen.peak)} kWh</td><td>${pctOf(lifetimeGen.peak)}</td></tr>
-                    <tr><td><span class="tou-pill standard">Standard</span></td><td>${fmt(lifetimeGen.standard)} kWh</td><td>${pctOf(lifetimeGen.standard)}</td></tr>
-                    <tr><td><span class="tou-pill off-peak">Off-Peak</span></td><td>${fmt(lifetimeGen.off_peak)} kWh</td><td>${pctOf(lifetimeGen.off_peak)}</td></tr>
-                    <tr style="font-weight:700;border-top:2px solid rgba(255,255,255,0.15);"><td>Total</td><td>${fmt(tG)} kWh</td><td>100%</td></tr>
-                `;
-            }
-        }
-
+        // renderFinSavChart and renderFinGenChart are now inline in renderFinancialTab above
+        function renderFinSavChart() {}
+        function renderFinGenChart() {}
         function calcDaySavings(yr, mo, day, sc, exp) {
             // Calculate TOU savings for a single day
-            if (!finConfig || !pvsyst) return {peak:0,standard:0,off_peak:0};
+            // Block tariff: return simple estimate
+            return {peak:0,standard:0,off_peak:0}; // TOU not used
             const fc = finConfig;
             const season = (fc.seasons||{})[String(mo)] || 'low_demand';
             const dt = new Date(yr, mo-1, day);
@@ -4584,6 +4354,30 @@
         function renderMonthlyTOUChart(selectedYM) {
             const ctx = document.getElementById('monthlyTOUChart');
             if (!ctx) return;
+            // Block tariff site: render monthly savings by block instead of TOU
+            if (!finConfig && typeof calcBlockSavings === 'function') {
+                const [yr,mo] = selectedYM.split('-').map(Number);
+                const days = dashData.daily ? Object.keys(dashData.daily).length : 0;
+                // Render a simple block savings chart for the month
+                const md = dashData.monthly?.[selectedYM]||{};
+                const load = md['Consumption (kWh)']||0;
+                const gi = md['Import (kWh)']||0;
+                const exp = md['Export (kWh)']||0;
+                const bs = calcBlockSavings(load, gi, exp);
+                const cm = chartMobile();
+                if (typeof monthlyTOUChart !== 'undefined' && monthlyTOUChart) monthlyTOUChart.destroy();
+                monthlyTOUChart = new Chart(ctx, {
+                    type:'bar',
+                    data:{labels:['Block 1','Block 2','Block 3','Block 4','Export'],
+                        datasets:[{label:'Savings (R)',data:[...bs.blockSavings.map(b=>b.cost), bs.exportIncome],
+                            backgroundColor:['rgba(74,222,128,0.6)','rgba(255,215,0,0.5)','rgba(249,115,22,0.5)','rgba(239,68,68,0.5)','rgba(56,189,248,0.5)'],
+                            borderWidth:1}]},
+                    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+                        tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>'R'+Math.round(c.parsed.y)}}},
+                        scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}}}}
+                });
+                return;
+            }
             const [yr,mo] = selectedYM.split('-').map(Number);
             const now = new Date();
             const isCurrentMonth = yr===now.getFullYear() && mo===now.getMonth()+1;
