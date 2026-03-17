@@ -1363,7 +1363,7 @@
                 <div class="dash-block" data-block="ml-touchart" data-block-name="TOU Savings Chart" draggable="false">
                     <span class="block-handle" title="Drag to reorder">⠿</span>
                     <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('ml-touchart')">✕</span>
-                <!-- DAILY TOU SAVINGS BREAKDOWN -->
+                <!-- DAILY BLOCK SAVINGS BREAKDOWN -->
                 <div class="chart-container">
                     <h3>Daily Savings for Selected Month</h3>
                     <div class="chart-legend-row">
@@ -1448,9 +1448,9 @@
                 <div class="dash-block" data-block="lt-tou" data-block-name="TOU Breakdown" draggable="false">
                     <span class="block-handle" title="Drag to reorder">⠿</span>
                     <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('lt-tou')">✕</span>
-                <!-- LIFETIME TOU FINANCIAL BREAKDOWN -->
+                <!-- LIFETIME BLOCK TARIFF BREAKDOWN -->
                 <div class="daily-savings-table">
-                    <h3>Lifetime Time of Use Financial Breakdown</h3>
+                    <h3>Lifetime Block Tariff Savings Breakdown</h3>
                     <div class="env-table-wrap">
                         <table class="env-table">
                             <thead><tr><th>Block</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
@@ -1596,10 +1596,10 @@
                     </div>
                     <div class="chart-legend-row" id="finSavLegend">
                         <div class="chart-legend-defaults">
-                            <div class="chart-legend-item" data-fds="f-peak" onclick="toggleFinDs('f-peak')"><span class="legend-swatch" style="background:#ef4444;"></span>Peak Savings</div>
-                            <div class="chart-legend-item" data-fds="f-std" onclick="toggleFinDs('f-std')"><span class="legend-swatch" style="background:#f59e0b;"></span>Standard Savings</div>
-                            <div class="chart-legend-item" data-fds="f-offpk" onclick="toggleFinDs('f-offpk')"><span class="legend-swatch" style="background:#10b981;"></span>Off-Peak Savings</div>
-                            <div class="chart-legend-item" data-fds="f-cumSav" onclick="toggleFinDs('f-cumSav')"><span class="legend-swatch" style="background:#ffd700;border-style:solid;"></span>Cumulative Savings</div>
+                            <div class="chart-legend-item" data-fds="f-peak" onclick="toggleFinDs('f-peak')"><span class="legend-swatch" style="background:#4ade80;"></span>PV Savings</div>
+                            <div class="chart-legend-item" data-fds="f-std" onclick="toggleFinDs('f-std')"><span class="legend-swatch" style="background:#38bdf8;"></span>Export Income</div>
+                            <div class="chart-legend-item" data-fds="f-offpk" onclick="toggleFinDs('f-offpk')"><span class="legend-swatch" style="background:#ffd700;border-style:solid;"></span>Cumulative</div>
+                            
                         </div>
                     </div>
                     <div class="chart-wrap" style="height:350px;"><canvas id="finSavChart"></canvas></div>
@@ -1610,14 +1610,14 @@
                 <div class="dash-block" data-block="fin-genchart" data-block-name="TOU Distribution" draggable="false">
                     <span class="block-handle" title="Drag to reorder">⠿</span>
                     <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('fin-genchart')">✕</span>
-                <!-- TOU GENERATION DISTRIBUTION -->
+                <!-- COST COMPARISON -->
                 <div class="chart-container">
                     <h3>Monthly Cost: With vs Without Solar</h3>
                     <div class="chart-legend-row" id="finGenLegend">
                         <div class="chart-legend-defaults">
-                            <div class="chart-legend-item" data-fds="fg-peak" onclick="toggleFinDs('fg-peak')"><span class="legend-swatch" style="background:#ef4444;"></span>Peak</div>
-                            <div class="chart-legend-item" data-fds="fg-std" onclick="toggleFinDs('fg-std')"><span class="legend-swatch" style="background:#f59e0b;"></span>Standard</div>
-                            <div class="chart-legend-item" data-fds="fg-offpk" onclick="toggleFinDs('fg-offpk')"><span class="legend-swatch" style="background:#10b981;"></span>Off-Peak</div>
+                            <div class="chart-legend-item" data-fds="fg-peak" onclick="toggleFinDs('fg-peak')"><span class="legend-swatch" style="background:#ef4444;"></span>Without Solar</div>
+                            <div class="chart-legend-item" data-fds="fg-std" onclick="toggleFinDs('fg-std')"><span class="legend-swatch" style="background:#4ade80;"></span>With Solar</div>
+                            
                         </div>
                     </div>
                     <div class="chart-wrap" style="height:350px;"><canvas id="finGenChart"></canvas></div>
@@ -1682,7 +1682,7 @@
                             <label class="report-field-chk"><input type="checkbox" data-field="expSav"> Export Savings</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="pvSav"> PV Savings</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="irrad"> Irradiation</label>
-                            <label class="report-field-chk"><input type="checkbox" data-field="tou"> TOU Period</label>
+                            <label class="report-field-chk"><input type="checkbox" data-field="tou"> Block</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="season"> Season</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="wdType"> Weekday / Weekend</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="dayName"> Day Name</label>
@@ -3405,32 +3405,27 @@
 
         function renderDailySavingsTable(rec, dateObj) {
             const tbody = document.getElementById('dailySavingsBody');
-            // Block tariff savings for this day
+            // Block tariff savings - use the month's block allocation to determine daily rate
             if (typeof calcBlockSavings === 'function') {
-                const load = rec.consumption || 0;
-                const gi = rec.import || 0;
-                const exp = rec.export || 0;
-                const pvYield = rec.pv || 0;
-                // For a single day, estimate using average monthly rate per block
-                // Find the month this day belongs to
                 const ym = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0');
                 const md = dashData.monthly?.[ym] || {};
-                const mLoad = md['Consumption (kWh)'] || load;
-                const mGI = md['Import (kWh)'] || gi;
-                const bs = calcBlockSavings(mLoad, mGI, 0);
-                // Average rate = total cost / total kWh
-                const avgRate = mLoad > 0 ? bs.withoutSolar / mLoad : BLOCK_TARIFF[1].rate;
-                const margRate = mLoad > 0 ? (function(){let p=0;for(const b of BLOCK_TARIFF){if(mLoad<=b.limit)return b.rate;p=b.limit;}return BLOCK_TARIFF[3].rate;})() : BLOCK_TARIFF[1].rate;
-                const utilityCost = gi * avgRate;
-                const pvSavings = (pvYield - exp) * avgRate;
-                const exportIncome = exp * margRate;
-                const blkLabels = ['<span class="tou-pill off-peak">Block 1</span>','<span class="tou-pill standard">Block 2</span>','<span class="tou-pill peak">Block 3</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4</span>'];
-                // Show summary row
-                let h = '';
-                h += `<tr><td style="text-align:left">PV Generation</td><td>${fmtDec(pvYield,1)} kWh</td><td>${(avgRate*100).toFixed(1)} c avg</td><td style="color:var(--green)">R${fmt(pvSavings)}</td><td></td><td style="color:var(--green)">R${fmt(pvSavings)}</td></tr>`;
-                if (exp > 0) h += `<tr><td style="text-align:left">Export to Grid</td><td>${fmtDec(exp,1)} kWh</td><td>${(margRate*100).toFixed(1)} c</td><td></td><td style="color:#38bdf8">R${fmt(exportIncome)}</td><td style="color:#38bdf8">R${fmt(exportIncome)}</td></tr>`;
-                h += `<tr><td style="text-align:left">Grid Import</td><td>${fmtDec(gi,1)} kWh</td><td>${(avgRate*100).toFixed(1)} c avg</td><td colspan="2" style="color:var(--red)">R${fmt(utilityCost)}</td><td></td></tr>`;
-                h += `<tr class="total-row"><td style="text-align:left">Net Savings</td><td></td><td></td><td style="color:var(--green)">R${fmt(pvSavings)}</td><td style="color:#38bdf8">R${fmt(exportIncome)}</td><td style="color:var(--green);font-weight:700">R${fmt(pvSavings + exportIncome)}</td></tr>`;
+                const mLoad = md['Consumption (kWh)'] || (rec.consumption || 0);
+                const mGI = md['Import (kWh)'] || (rec.import || 0);
+                const mExp = md['Export (kWh)'] || (rec.export || 0);
+                const bs = calcBlockSavings(mLoad, mGI, mExp);
+                // Render same as monthly
+                const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
+                let h = '', totPvS = 0, totUtil = 0, totGen = 0;
+                bs.blockSavings.forEach((b, i) => {
+                    totPvS += b.cost;
+                    const utilCost = (bs.withSolar > 0 && mGI > 0) ? calcBlockCost(mGI).blocks[i].cost : 0;
+                    totUtil += utilCost;
+                    totGen += b.kwh;
+                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(b.kwh,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(b.cost)+'</td><td></td><td style="color:var(--green)">R'+fmt(b.cost)+'</td></tr>';
+                });
+                const expInc = bs.exportIncome;
+                if (expInc > 0) h += '<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td>'+fmtDec(mExp,1)+' kWh</td><td></td><td></td><td style="color:#38bdf8">R'+fmt(expInc)+'</td><td style="color:#38bdf8">R'+fmt(expInc)+'</td></tr>';
+                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(totGen)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(expInc)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(bs.total)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
             }
@@ -3786,14 +3781,23 @@
             const tbody = document.getElementById('monthlySavingsBody');
             if (!sav || !sav.blockSavings) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">No savings data</td></tr>'; return; }
             const labels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
-            let h='', totPvS=0;
+            // Get utility cost per block from grid import
+            const ym = document.querySelector('.month-btn.active')?.textContent || '';
+            const md = dashData.monthly?.[ym] || {};
+            const gi = md['Import (kWh)'] || 0;
+            const mExp = md['Export (kWh)'] || 0;
+            const giBlocks = calcBlockCost(gi);
+            let h='', totPvS=0, totUtil=0, totGen=0;
             sav.blockSavings.forEach((b,i) => {
                 totPvS += b.cost;
-                h += `<tr><td style="text-align:left">${labels[i]}</td><td>${fmtDec(b.kwh,1)} kWh</td><td>${(b.rate*100).toFixed(2)} c</td><td>R${fmt(b.cost)}</td><td></td><td>R${fmt(b.cost)}</td></tr>`;
+                const utilCost = giBlocks.blocks[i]?.cost || 0;
+                totUtil += utilCost;
+                totGen += b.kwh;
+                h += `<tr><td style="text-align:left">${labels[i]}</td><td>${fmtDec(b.kwh,1)} kWh</td><td>R${fmt(utilCost)}</td><td style="color:var(--green);">R${fmt(b.cost)}</td><td></td><td style="color:var(--green);">R${fmt(b.cost)}</td></tr>`;
             });
             const expInc = sav.export_savings?.total || 0;
-            if (expInc > 0) h += `<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td></td><td></td><td></td><td>R${fmt(expInc)}</td><td>R${fmt(expInc)}</td></tr>`;
-            h += `<tr class="total-row"><td style="text-align:left">Total</td><td></td><td></td><td>R${fmt(totPvS)}</td><td>R${fmt(expInc)}</td><td>R${fmt(sav.total)}</td></tr>`;
+            if (expInc > 0) h += `<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td>${fmtDec(mExp,1)} kWh</td><td></td><td></td><td style="color:#38bdf8;">R${fmt(expInc)}</td><td style="color:#38bdf8;">R${fmt(expInc)}</td></tr>`;
+            h += `<tr class="total-row"><td style="text-align:left">Total</td><td>${fmt(totGen)} kWh</td><td>R${fmt(totUtil)}</td><td style="color:var(--green);">R${fmt(totPvS)}</td><td style="color:#38bdf8;">R${fmt(expInc)}</td><td style="color:var(--green);font-weight:700;">R${fmt(sav.total)}</td></tr>`;
             tbody.innerHTML = h;
         }
 
@@ -4056,21 +4060,25 @@
         function renderLifetimeSavingsTable(sortedMonths) {
             const tbody = document.getElementById('lifetimeSavingsBody');
             const monthly = dashData.monthly || {};
-            let ltBT = [0,0,0,0], ltExpTotal = 0;
+            let ltBT = [0,0,0,0], ltUtil = [0,0,0,0], ltGen = [0,0,0,0], ltExpTotal = 0, ltExpKwh = 0;
             sortedMonths.forEach(ym => {
                 const md = monthly[ym]; if(!md) return;
                 const load = md['Consumption (kWh)']||0, gi = md['Import (kWh)']||0, exp = md['Export (kWh)']||0;
                 if (typeof calcBlockSavings === 'function') {
                     const bs = calcBlockSavings(load, gi, exp);
-                    bs.blockSavings.forEach((b,i) => ltBT[i] += b.cost);
+                    bs.blockSavings.forEach((b,i) => { ltBT[i] += b.cost; ltGen[i] += b.kwh; });
                     ltExpTotal += bs.exportIncome;
+                    ltExpKwh += exp;
+                    // Utility cost per block = grid import cost per block
+                    const giBlocks = calcBlockCost(gi);
+                    giBlocks.blocks.forEach((b,i) => ltUtil[i] += b.cost);
                 }
             });
             const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
-            let html = '', ltPvTotal = 0;
-            ltBT.forEach((cost,i) => { ltPvTotal += cost; html += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td></td><td>'+(BLOCK_TARIFF[i].rate*100).toFixed(2)+' c</td><td>R'+fmt(cost)+'</td><td></td><td>R'+fmt(cost)+'</td></tr>'; });
-            if (ltExpTotal > 0) html += '<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td></td><td></td><td></td><td>R'+fmt(ltExpTotal)+'</td><td>R'+fmt(ltExpTotal)+'</td></tr>';
-            html += '<tr class="total-row"><td style="text-align:left">Total</td><td></td><td></td><td>R'+fmt(ltPvTotal)+'</td><td>R'+fmt(ltExpTotal)+'</td><td>R'+fmt(ltPvTotal+ltExpTotal)+'</td></tr>';
+            let html = '', ltPvTotal = 0, ltUtilTotal = 0, ltGenTotal = 0;
+            ltBT.forEach((cost,i) => { ltPvTotal += cost; ltUtilTotal += ltUtil[i]; ltGenTotal += ltGen[i]; html += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmt(ltGen[i])+' kWh</td><td>R'+fmt(ltUtil[i])+'</td><td style="color:var(--green)">R'+fmt(cost)+'</td><td></td><td style="color:var(--green)">R'+fmt(cost)+'</td></tr>'; });
+            if (ltExpTotal > 0) html += '<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td>'+fmt(ltExpKwh)+' kWh</td><td></td><td></td><td style="color:#38bdf8">R'+fmt(ltExpTotal)+'</td><td style="color:#38bdf8">R'+fmt(ltExpTotal)+'</td></tr>';
+            html += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(ltGenTotal)+' kWh</td><td>R'+fmt(ltUtilTotal)+'</td><td style="color:var(--green)">R'+fmt(ltPvTotal)+'</td><td style="color:#38bdf8">R'+fmt(ltExpTotal)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(ltPvTotal+ltExpTotal)+'</td></tr>';
             tbody.innerHTML = html;
         }
 
@@ -4649,7 +4657,7 @@
                 { key:'expSav', label:'Export Savings (R)', show:fields.expSav, fmt: v=>v.toFixed(2), numeric:true },
                 { key:'pvSav', label:'PV Savings (R)', show:fields.pvSav, fmt: v=>v.toFixed(2), numeric:true },
                 { key:'irrad', label:'Irradiation (W/m²)', show:fields.irrad, fmt: v=>Math.round(v), numeric:true },
-                { key:'tou', label:'TOU Period', show:fields.tou, fmt: v=>v },
+                { key:'tou', label:'Block', show:fields.tou, fmt: v=>v },
                 { key:'season', label:'Season', show:fields.season, fmt: v=>v }
             ];
             const activeCols = colDefs.filter(c => c.show);
@@ -4718,7 +4726,7 @@
                 { key:'expSav', label:'Export Savings (R)', show:fields.expSav },
                 { key:'pvSav', label:'PV Savings (R)', show:fields.pvSav },
                 { key:'irrad', label:'Irradiation (W/m²)', show:fields.irrad },
-                { key:'tou', label:'TOU Period', show:fields.tou },
+                { key:'tou', label:'Block', show:fields.tou },
                 { key:'season', label:'Season', show:fields.season }
             ];
             const activeCols = colDefs.filter(c => c.show);
@@ -5661,7 +5669,7 @@
             if(sav){
                 const fC=[TW*0.17,TW*0.17,TW*0.17,TW*0.17,TW*0.16,TW*0.16].map(Math.floor);
                 children.push(tbl(fC,[
-                    row(hdr('TOU Period',fC[0]),hdr('Generation',fC[1]),hdr('Utility Cost',fC[2]),hdr('PV Savings',fC[3]),hdr('Export Savings',fC[4]),hdr('Total Savings',fC[5])),
+                    row(hdr('Block',fC[0]),hdr('Generation',fC[1]),hdr('Utility Cost',fC[2]),hdr('PV Savings',fC[3]),hdr('Export Savings',fC[4]),hdr('Total Savings',fC[5])),
                     row(cel('Peak',fC[0],{bold:true,align:D.AlignmentType.LEFT}),cel(fN(sav.generation?.peak)+' kWh',fC[1]),cel('R'+fN(sav.utility_cost?.peak),fC[2]),cel('R'+fN(sav.pv_savings?.peak),fC[3]),cel('R'+fN(sav.export_savings?.peak),fC[4]),cel('R'+fN((sav.pv_savings?.peak||0)+(sav.export_savings?.peak||0)),fC[5],{bold:true,color:GREEN})),
                     row(cel('Standard',fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:LIGHT}),cel(fN(sav.generation?.standard)+' kWh',fC[1],{fill:LIGHT}),cel('R'+fN(sav.utility_cost?.standard),fC[2],{fill:LIGHT}),cel('R'+fN(sav.pv_savings?.standard),fC[3],{fill:LIGHT}),cel('R'+fN(sav.export_savings?.standard),fC[4],{fill:LIGHT}),cel('R'+fN((sav.pv_savings?.standard||0)+(sav.export_savings?.standard||0)),fC[5],{fill:LIGHT,bold:true,color:GREEN})),
                     row(cel('Off-Peak',fC[0],{bold:true,align:D.AlignmentType.LEFT}),cel(fN(sav.generation?.off_peak)+' kWh',fC[1]),cel('R'+fN(sav.utility_cost?.off_peak),fC[2]),cel('R'+fN(sav.pv_savings?.off_peak),fC[3]),cel('R'+fN(sav.export_savings?.off_peak),fC[4]),cel('R'+fN((sav.pv_savings?.off_peak||0)+(sav.export_savings?.off_peak||0)),fC[5],{bold:true,color:GREEN})),
@@ -5672,7 +5680,7 @@
             children.push(h2('Savings Over Time'));
             children.push(img(fCaps.savChart, 700, 320));
             children.push(sp(60));
-            children.push(h2('TOU Generation Distribution'));
+            children.push(h2('Monthly Cost: With vs Without Solar'));
             children.push(img(fCaps.genChart, 700, 320));
             children.push(new D.Paragraph({children:[new D.PageBreak()]}));
 
