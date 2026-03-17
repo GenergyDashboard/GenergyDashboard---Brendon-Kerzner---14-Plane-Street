@@ -2344,6 +2344,11 @@
                 return {};
             }
 
+            // Battery to Load values (needed by renderSlab for coverage %)
+            const todayBatt = d.today?.data?.['Battery to Load (kWh)'] || 0;
+            const monthBatt = d.current_month?.data?.['Battery to Load (kWh)'] || 0;
+            const lifeBatt = d.all_time_totals?.['Battery to Load (kWh)'] || 0;
+
             renderSlab('today', todayKwh, todayExp, todayToLoad, todayToGrid, getSav('today'), todayCons, todayBatt);
             renderSlab('month', monthKwh, monthExp, monthToLoad, monthToGrid, getSav('current_month'), monthCons, monthBatt);
             renderSlab('lifetime', lifetimeKwh, lifetimeExp, lifeToLoad, lifeToGrid, getSav('all_time'), lifeCons, lifeBatt);
@@ -2374,9 +2379,6 @@
             const todayGrid = d.today?.data?.['Import (kWh)'] || 0;
             const monthGrid = d.current_month?.data?.['Import (kWh)'] || 0;
             const lifeGrid = d.all_time_totals?.['Import (kWh)'] || 0;
-            const todayBatt = d.today?.data?.['Battery to Load (kWh)'] || 0;
-            const monthBatt = d.current_month?.data?.['Battery to Load (kWh)'] || 0;
-            const lifeBatt = d.all_time_totals?.['Battery to Load (kWh)'] || 0;
             renderOverviewDonut('today', todayToLoad, todayBatt, todayGrid);
             renderOverviewDonut('month', monthToLoad, monthBatt, monthGrid);
             renderOverviewDonut('lifetime', lifeToLoad, lifeBatt, lifeGrid);
