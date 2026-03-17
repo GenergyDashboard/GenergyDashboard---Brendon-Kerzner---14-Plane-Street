@@ -2,58 +2,114 @@
 14 Plane Street – Data Processor
 Reads the VRM kWh XLSX exports and produces dashboard_data.json for the index.
 
+Also handles lifetime data accumulation: if --append-yesterday is provided,
+yesterday's XLSX is appended into the lifetime file before processing,
+so the lifetime file self-maintains over time.
+
 Usage:
     python process_data.py --today downloads/14PlanestreetJBay_kwh_20260317.xlsx \
                            --lifetime data/Monthly_Data_Excluding_today.xlsx \
                            --output data/dashboard_data.json
 
-The --lifetime file should contain ALL historical data EXCLUDING today,
-so there is no double-counting.  Today's file comes from the scraper.
+    # With yesterday append (run by GitHub Actions):
+    python process_data.py --today downloads/... --lifetime data/... --output data/... \
+                           --append-yesterday downloads/14PlanestreetJBay_kwh_20260316.xlsx
 
 The XLSX layout (from VRM "Download kWh .xlsx"):
     Row 1: blank
-    Row 2: headers  (timestamp, Solar Yield (delta), Grid to battery, Grid to consumers,
-                     PV to battery, PV to grid, PV to consumers, Battery to consumers,
-                     Battery to grid, Genset to consumers, Genset to battery, Gas)
-    Row 3: units    (Africa/Johannesburg (+02:00), kWh, kWh, …)
-    Row 4+: data    ("2026-03-17 00:00:00", value|None, …)
+    Row 2: headers
+    Row 3: units
+    Row 4+: data  ("2026-03-17 00:00:00", value|None, …)
 """
 import argparse
 import json
 import os
-import sys
 from collections import defaultdict
 from datetime import datetime
 
 import openpyxl
 
-# ── Column mapping ──────────────────────────────────────
-# Columns are 0-indexed after timestamp
+# ── Column mapping (0-indexed after timestamp) ──────────
 FIELDS = [
-    "solar_yield",     # B – Solar Yield (delta)
-    "grid_to_batt",    # C – Grid to battery
-    "grid_to_cons",    # D – Grid to consumers
-    "pv_to_batt",      # E – PV to battery
-    "pv_to_grid",      # F – PV to grid
-    "pv_to_cons",      # G – PV to consumers
-    "batt_to_cons",    # H – Battery to consumers
-    "batt_to_grid",    # I – Battery to grid
-    "genset_to_cons",  # J – Genset to consumers
-    "genset_to_batt",  # K – Genset to battery
+    "solar_yield",     # B
+    "grid_to_batt",    # C
+    "grid_to_cons",    # D
+    "pv_to_batt",      # E
+    "pv_to_grid",      # F
+    "pv_to_cons",      # G
+    "batt_to_cons",    # H
+    "batt_to_grid",    # I
+    "genset_to_cons",  # J
+    "genset_to_batt",  # K
 ]
 
-# ── Environmental factors per kWh (PV generation) ───────
-ENV = {"trees": 0.045, "homes": 0.102, "coal": 0.548, "water": 1.4}
+VRM_HEADERS = [
+    'timestamp', 'Solar Yield (delta)', 'Grid to battery',
+    'Grid to consumers', 'PV to battery', 'PV to grid',
+    'PV to consumers', 'Battery to consumers', 'Battery to grid',
+    'Genset to consumers', 'Genset to battery', 'Gas'
+]
+VRM_UNITS = [
+    'Africa/Johannesburg (+02:00)', 'kWh', 'kWh', 'kWh', 'kWh',
+    'kWh', 'kWh', 'kWh', 'kWh', 'kWh', 'kWh', 'm3'
+]
 
+
+# ══════════════════════════════════════════════════
+# LIFETIME XLSX ACCUMULATION
+# ══════════════════════════════════════════════════
+
+def append_to_lifetime(daily_xlsx, lifetime_xlsx):
+    """
+    Append all rows from daily_xlsx into lifetime_xlsx (idempotent).
+    Creates the lifetime file with proper VRM headers if it doesn't exist.
+    """
+    if not os.path.exists(daily_xlsx):
+        print(f"  [append] File not found, skipping: {daily_xlsx}")
+        return
+
+    if os.path.exists(lifetime_xlsx):
+        wb = openpyxl.load_workbook(lifetime_xlsx)
+        ws = wb.active
+    else:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "VRM kWh report"
+        ws.append([None] * 12)
+        ws.append(VRM_HEADERS)
+        ws.append(VRM_UNITS)
+
+    existing = set()
+    for row in ws.iter_rows(min_row=4, max_row=ws.max_row, values_only=True):
+        ts = str(row[0]).strip() if row[0] else None
+        if ts:
+            existing.add(ts)
+
+    wb_d = openpyxl.load_workbook(daily_xlsx, data_only=True)
+    ws_d = wb_d.active
+    added = 0
+    for row in ws_d.iter_rows(min_row=4, max_row=ws_d.max_row, values_only=True):
+        ts = str(row[0]).strip() if row[0] else None
+        if not ts or ts in existing:
+            continue
+        ws.append(list(row))
+        added += 1
+
+    wb.save(lifetime_xlsx)
+    print(f"  [append] +{added} rows (was {len(existing)}, now {len(existing)+added})")
+
+
+# ══════════════════════════════════════════════════
+# XLSX PARSING & AGGREGATION
+# ══════════════════════════════════════════════════
 
 def parse_xlsx(filepath):
-    """Parse VRM kWh XLSX into list of row dicts."""
     wb = openpyxl.load_workbook(filepath, data_only=True)
     ws = wb.active
     rows = []
     for row in ws.iter_rows(min_row=4, max_row=ws.max_row, values_only=True):
-        ts = str(row[0]) if row[0] else None
-        if not ts or ts.strip() == "":
+        ts = str(row[0]).strip() if row[0] else None
+        if not ts:
             continue
         entry = {"ts": ts}
         for i, field in enumerate(FIELDS):
@@ -63,7 +119,6 @@ def parse_xlsx(filepath):
 
 
 def add_derived(d):
-    """Add computed fields to a dict of summed FIELDS."""
     d["pv_total"] = d["pv_to_batt"] + d["pv_to_grid"] + d["pv_to_cons"]
     d["load"] = d["grid_to_cons"] + d["pv_to_cons"] + d["batt_to_cons"] + d["genset_to_cons"]
     d["grid_import"] = d["grid_to_cons"] + d["grid_to_batt"]
@@ -73,7 +128,6 @@ def add_derived(d):
 
 
 def aggregate(rows, key_fn):
-    """Aggregate rows by a key function, summing all FIELDS."""
     agg = defaultdict(lambda: {k: 0.0 for k in FIELDS})
     counts = defaultdict(int)
     for r in rows:
@@ -91,70 +145,42 @@ def aggregate(rows, key_fn):
     return result
 
 
-def hourly_key(ts):
-    return ts[:13] + ":00:00"
-
-
-def daily_key(ts):
-    return ts[:10]
-
-
-def monthly_key(ts):
-    return ts[:7]
-
-
-def round_dict(d, decimals=3):
-    return {k: round(v, decimals) if isinstance(v, float) else v for k, v in d.items()}
+def hourly_key(ts):  return ts[:13] + ":00:00"
+def daily_key(ts):   return ts[:10]
+def monthly_key(ts): return ts[:7]
 
 
 def build_hourly_by_date(all_hourly):
-    """Group hourly records by date for the daily-tab date picker."""
     by_date = defaultdict(list)
-    output_fields = [
-        "pv_total", "load", "grid_import", "export",
-        "pv_to_cons", "pv_to_batt", "batt_to_cons", "grid_to_cons",
-        "grid_to_batt", "batt_to_grid",
-    ]
+    fields = ["pv_total","load","grid_import","export","pv_to_cons","pv_to_batt",
+              "batt_to_cons","grid_to_cons","grid_to_batt","batt_to_grid"]
     for h in all_hourly:
-        date = h["key"][:10]
-        hour_num = int(h["key"][11:13])
-        rec = {"h": hour_num}
-        for f in output_fields:
+        rec = {"h": int(h["key"][11:13])}
+        for f in fields:
             rec[f] = round(h.get(f, 0), 3)
-        by_date[date].append(rec)
+        by_date[h["key"][:10]].append(rec)
     return dict(by_date)
 
 
-def calc_avg_hourly(hourly_by_date, month_str):
-    """Calculate average hourly profile for a month (for chart overlays)."""
-    sums = defaultdict(lambda: defaultdict(float))
-    counts = defaultdict(int)
-    for date, hours in hourly_by_date.items():
-        if date[:7] != month_str:
-            continue
-        for h in hours:
-            sums[h["h"]]["pv_total"] += h["pv_total"]
-            sums[h["h"]]["load"] += h["load"]
-            sums[h["h"]]["grid_import"] += h["grid_import"]
-            counts[h["h"]] += 1
-    avg = {}
-    for hour in sorted(sums.keys()):
-        c = counts[hour] or 1
-        avg[hour] = {
-            "pv_total": round(sums[hour]["pv_total"] / c, 3),
-            "load": round(sums[hour]["load"] / c, 3),
-            "grid_import": round(sums[hour]["grid_import"] / c, 3),
-        }
-    return avg
-
+# ══════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════
 
 def main():
-    parser = argparse.ArgumentParser(description="Process VRM kWh data for dashboard")
-    parser.add_argument("--today", required=True, help="Path to today's XLSX")
-    parser.add_argument("--lifetime", required=True, help="Path to lifetime XLSX (excluding today)")
-    parser.add_argument("--output", default="data/dashboard_data.json", help="Output JSON path")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description="Process VRM kWh data for dashboard")
+    p.add_argument("--today", required=True, help="Path to today's XLSX")
+    p.add_argument("--lifetime", required=True, help="Path to lifetime XLSX (excluding today)")
+    p.add_argument("--output", default="data/dashboard_data.json", help="Output JSON path")
+    p.add_argument("--append-yesterday", default=None,
+                   help="Path to yesterday's XLSX — appended into lifetime before processing")
+    args = p.parse_args()
 
+    # Step 1: Append yesterday into lifetime (if provided)
+    if args.append_yesterday:
+        print(f"Appending yesterday: {args.append_yesterday}")
+        append_to_lifetime(args.append_yesterday, args.lifetime)
+
+    # Step 2: Parse
     print(f"Reading today:    {args.today}")
     today_raw = parse_xlsx(args.today)
     print(f"  → {len(today_raw)} rows")
@@ -165,53 +191,50 @@ def main():
 
     all_raw = lifetime_raw + today_raw
 
-    # ── Aggregate ──────────────────────────────────
-    all_hourly = aggregate(all_raw, hourly_key)
+    # Step 3: Aggregate
+    all_hourly  = aggregate(all_raw, hourly_key)
     today_hourly = aggregate(today_raw, hourly_key)
-    all_daily = aggregate(all_raw, daily_key)
+    all_daily   = aggregate(all_raw, daily_key)
     all_monthly = aggregate(all_raw, monthly_key)
-
-    # ── Build hourly-by-date lookup ────────────────
     hourly_by_date = build_hourly_by_date(all_hourly)
 
-    # ── Totals ─────────────────────────────────────
+    # Step 4: Totals
     totals = {f: 0.0 for f in FIELDS}
     for r in all_raw:
         for f in FIELDS:
             totals[f] += r[f]
     add_derived(totals)
 
-    # ── Today date string ──────────────────────────
     today_date = today_raw[-1]["ts"][:10] if today_raw else datetime.now().strftime("%Y-%m-%d")
+    out_fields = FIELDS + ["pv_total","load","grid_import","export","self_consumption"]
 
-    # ── Compose output ─────────────────────────────
-    output_fields = FIELDS + ["pv_total", "load", "grid_import", "export", "self_consumption"]
-
+    # Step 5: Compose JSON
     data = {
         "site_name": "14 Plane Street",
         "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "today_date": today_date,
         "today_hourly": [
-            {"h": int(h["key"][11:13]), **{f: round(h[f], 3) for f in output_fields}}
+            {"h": int(h["key"][11:13]), **{f: round(h[f], 3) for f in out_fields}}
             for h in today_hourly
         ],
         "daily": [
-            {"date": d["key"], **{f: round(d[f], 2) for f in output_fields}}
+            {"date": d["key"], **{f: round(d[f], 2) for f in out_fields}}
             for d in all_daily
         ],
         "monthly": [
-            {"month": m["key"], "days": m["count"], **{f: round(m[f], 2) for f in output_fields}}
+            {"month": m["key"], "days": m["count"], **{f: round(m[f], 2) for f in out_fields}}
             for m in all_monthly
         ],
         "hourly_by_date": hourly_by_date,
-        "totals": {f: round(totals[f], 2) for f in output_fields},
+        "totals": {f: round(totals[f], 2) for f in out_fields},
         "days_active": len(all_daily),
     }
 
-    # ── Write JSON ─────────────────────────────────
+    # Step 6: Write
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w") as f:
         json.dump(data, f, separators=(",", ":"))
+
     size_kb = os.path.getsize(args.output) / 1024
     print(f"\nWrote {args.output}  ({size_kb:.0f} KB)")
     print(f"  Days:   {len(all_daily)}")
