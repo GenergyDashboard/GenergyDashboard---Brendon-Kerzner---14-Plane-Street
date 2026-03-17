@@ -784,7 +784,7 @@
         <div class="header">
             <div>
                 <h1>14 Plane Street</h1>
-                <div class="powered-by">Solar Dashboard &mdash; Powered by <a href="https://genergy.co.za" target="_blank" class="company">Genergy</a> <span style="color:#fff; font-weight:700;">&amp; Milprops</span></div>
+                <div class="powered-by">Powered by <a href="https://genergy.co.za" target="_blank" class="company">Genergy</a></div>
             </div>
             <div class="header-right">
                 <div class="font-sizer">
@@ -1289,8 +1289,9 @@
                         <div class="slab-expected">Expected: <span class="exp-val" id="ml-pv-exp">--</span> <span class="exp-unit">kWh</span></div>
                         <div class="slab-status" id="ml-pv-status"></div>
                         <div class="flow-lines">
-                            <div class="flow-line"><span class="fl-label">⚡ to Load</span><span class="fl-value" id="ml-pv-toload">-- kWh</span></div>
-                            <div class="flow-line"><span class="fl-label">⚡ to Grid</span><span class="fl-value" id="ml-pv-togrid">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">☀ to Load</span><span class="fl-value" id="ml-pv-toload">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">🔋 to Battery</span><span class="fl-value" id="ml-pv-tobatt">-- kWh</span></div>
+                            <div class="flow-line"><span class="fl-label">↗ to Grid</span><span class="fl-value" id="ml-pv-togrid">-- kWh</span></div>
                         </div>
                         <div class="slab-perf"><div class="slab-perf-item"><div class="perf-label">PV Performance</div><div class="perf-value" id="ml-pv-perf">--%</div></div></div>
                     </div>
@@ -1364,7 +1365,7 @@
                     <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('ml-touchart')">✕</span>
                 <!-- DAILY TOU SAVINGS BREAKDOWN -->
                 <div class="chart-container">
-                    <h3>Daily TOU Savings Breakdown</h3>
+                    <h3>Daily Savings for Selected Month</h3>
                     <div class="chart-legend-row">
                         <div class="chart-legend-defaults">
                             <div class="chart-legend-item" data-mds="m-actPeak" onclick="toggleMonthlyDs('m-actPeak')"><span class="legend-swatch" style="background:#ef4444;"></span>Peak (R)</div>
@@ -2338,9 +2339,9 @@
                 return {};
             }
 
-            renderSlab('today', todayKwh, todayExp, todayToLoad, todayToGrid, getSav('today'), todayCons);
-            renderSlab('month', monthKwh, monthExp, monthToLoad, monthToGrid, getSav('current_month'), monthCons);
-            renderSlab('lifetime', lifetimeKwh, lifetimeExp, lifeToLoad, lifeToGrid, getSav('all_time'), lifeCons);
+            renderSlab('today', todayKwh, todayExp, todayToLoad, todayToGrid, getSav('today'), todayCons, todayBatt);
+            renderSlab('month', monthKwh, monthExp, monthToLoad, monthToGrid, getSav('current_month'), monthCons, monthBatt);
+            renderSlab('lifetime', lifetimeKwh, lifetimeExp, lifeToLoad, lifeToGrid, getSav('all_time'), lifeCons, lifeBatt);
 
             // Env boxes
             [['today', todayKwh], ['month', monthKwh], ['life', lifetimeKwh]].forEach(([id, kwh]) => {
@@ -2380,7 +2381,7 @@
             document.getElementById('ov-lifetime-battload').textContent = fmt(lifeBatt) + ' kWh';
         }
 
-        function renderSlab(id, actual, expected, toLoad, toGrid, savData, consumption) {
+        function renderSlab(id, actual, expected, toLoad, toGrid, savData, consumption, battToLoad) {
             document.getElementById('ov-' + id + '-gen').textContent = fmt(actual);
             document.getElementById('ov-' + id + '-exp').textContent = fmt(expected);
 
@@ -2400,10 +2401,10 @@
                 perfEl.className = 'perf-value ' + (perf >= CC.thresh_pv_good ? 'perf-good' : perf >= CC.thresh_pv_neutral ? 'perf-neutral' : 'perf-bad');
             } else { perfEl.textContent = '--%'; perfEl.className = 'perf-value perf-neutral'; }
 
-            // PV Coverage % (% of load covered by PV)
+            // PV Coverage % (% of load covered by PV + Battery)
             const covEl = document.getElementById('ov-' + id + '-cov');
-            if (consumption > 0 && toLoad > 0) {
-                const cov = (toLoad / consumption) * 100;
+            if (consumption > 0) {
+                const cov = ((toLoad + (battToLoad || 0)) / consumption) * 100;
                 covEl.textContent = cov.toFixed(1) + '%';
                 covEl.className = 'perf-value ' + (cov >= CC.thresh_cov_good ? 'perf-good' : cov >= CC.thresh_cov_neutral ? 'perf-neutral' : 'perf-bad');
             } else { covEl.textContent = '--%'; covEl.className = 'perf-value perf-neutral'; }
@@ -2570,9 +2571,24 @@
             const avgPVLine = new Array(24).fill(Math.round(avgHourlyPV * 10) / 10);
 
             // Irradiation
-            const irradRaw = irradData?.daily_records?.[targetDateStr]?.hourly_wm2 || new Array(24).fill(0);
-            const irradHourly = new Array(24).fill(0);
-            for (let i = 0; i < 23; i++) irradHourly[i] = irradRaw[i + 1] || 0;
+            // Irradiation: support both file format (daily_records) and API format (hourly.time)
+            let irradHourly = new Array(24).fill(0);
+            if (irradData?.daily_records?.[targetDateStr]?.hourly_wm2) {
+                const irradRaw = irradData.daily_records[targetDateStr].hourly_wm2;
+                for (let i = 0; i < 23; i++) irradHourly[i] = irradRaw[i + 1] || 0;
+            } else if (irradData?.hourly?.time && irradData?.hourly?.direct_radiation) {
+                // Open-Meteo API format: UTC times, need +2 for SAST
+                const times = irradData.hourly.time;
+                const vals = irradData.hourly.direct_radiation;
+                const todayStr = targetDateStr;
+                times.forEach((t, i) => {
+                    if (t.startsWith(todayStr)) {
+                        const utcH = parseInt(t.slice(11, 13));
+                        const sastH = (utcH + 2) % 24;
+                        irradHourly[sastH] = vals[i] || 0;
+                    }
+                });
+            }
 
             if (hourlyChart) hourlyChart.destroy();
 
@@ -3320,8 +3336,9 @@
             const actExp = rec.export || 0;
 
             // PV Coverage
-            const actCov = actLoad > 0 ? (actSC / actLoad * 100) : 0;
-            const expSC = expPV * CC.daily_exp_sc_fraction; // Fraction of expected PV that goes to load
+            const actBattCons = rec.batt_to_cons || 0;
+            const actCov = actLoad > 0 ? ((actSC + actBattCons) / actLoad * 100) : 0;
+            const expSC = expPV * CC.daily_exp_sc_fraction;
             const expCov = expLoad > 0 ? (expSC / expLoad * 100) : 0;
             const covOfExp = expCov > 0 ? (actCov / expCov * 100) : 0;
 
@@ -3331,6 +3348,8 @@
             renderDailySlab('grid', actGrid, expGrid, true); // invert: less grid = better
             document.getElementById('dl-pv-toload').textContent = fmt(actSC) + ' kWh';
             document.getElementById('dl-pv-togrid').textContent = fmt(actExp) + ' kWh';
+            const pvToBatt = rec.pv_to_batt || 0;
+            try { document.getElementById('dl-pv-tobatt').textContent = fmt(pvToBatt) + ' kWh'; } catch(e) {}
 
             // PV Coverage slab
             document.getElementById('dl-cov').textContent = actCov.toFixed(1);
@@ -3379,9 +3398,37 @@
 
         function renderDailySavingsTable(rec, dateObj) {
             const tbody = document.getElementById('dailySavingsBody');
-            const tb = rec.tou_breakdown;
-
-            if (tb && finConfig) {
+            // Block tariff savings for this day
+            if (typeof calcBlockSavings === 'function') {
+                const load = rec.consumption || 0;
+                const gi = rec.import || 0;
+                const exp = rec.export || 0;
+                const pvYield = rec.pv || 0;
+                // For a single day, estimate using average monthly rate per block
+                // Find the month this day belongs to
+                const ym = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0');
+                const md = dashData.monthly?.[ym] || {};
+                const mLoad = md['Consumption (kWh)'] || load;
+                const mGI = md['Import (kWh)'] || gi;
+                const bs = calcBlockSavings(mLoad, mGI, 0);
+                // Average rate = total cost / total kWh
+                const avgRate = mLoad > 0 ? bs.withoutSolar / mLoad : BLOCK_TARIFF[1].rate;
+                const margRate = mLoad > 0 ? (function(){let p=0;for(const b of BLOCK_TARIFF){if(mLoad<=b.limit)return b.rate;p=b.limit;}return BLOCK_TARIFF[3].rate;})() : BLOCK_TARIFF[1].rate;
+                const utilityCost = gi * avgRate;
+                const pvSavings = (pvYield - exp) * avgRate;
+                const exportIncome = exp * margRate;
+                const blkLabels = ['<span class="tou-pill off-peak">Block 1</span>','<span class="tou-pill standard">Block 2</span>','<span class="tou-pill peak">Block 3</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4</span>'];
+                // Show summary row
+                let h = '';
+                h += `<tr><td style="text-align:left">PV Generation</td><td>${fmtDec(pvYield,1)} kWh</td><td>${(avgRate*100).toFixed(1)} c avg</td><td style="color:var(--green)">R${fmt(pvSavings)}</td><td></td><td style="color:var(--green)">R${fmt(pvSavings)}</td></tr>`;
+                if (exp > 0) h += `<tr><td style="text-align:left">Export to Grid</td><td>${fmtDec(exp,1)} kWh</td><td>${(margRate*100).toFixed(1)} c</td><td></td><td style="color:#38bdf8">R${fmt(exportIncome)}</td><td style="color:#38bdf8">R${fmt(exportIncome)}</td></tr>`;
+                h += `<tr><td style="text-align:left">Grid Import</td><td>${fmtDec(gi,1)} kWh</td><td>${(avgRate*100).toFixed(1)} c avg</td><td colspan="2" style="color:var(--red)">R${fmt(utilityCost)}</td><td></td></tr>`;
+                h += `<tr class="total-row"><td style="text-align:left">Net Savings</td><td></td><td></td><td style="color:var(--green)">R${fmt(pvSavings)}</td><td style="color:#38bdf8">R${fmt(exportIncome)}</td><td style="color:var(--green);font-weight:700">R${fmt(pvSavings + exportIncome)}</td></tr>`;
+                tbody.innerHTML = h;
+                return;
+            }
+            const tb = null;
+            if (tb && false) {
                 // Use pre-calculated TOU breakdown
                 const periods = ['peak', 'standard', 'off_peak'];
                 const labels = { peak: '<span class="tou-pill peak">Peak</span>', standard: '<span class="tou-pill standard">Standard</span>', off_peak: '<span class="tou-pill off-peak">Off-Peak</span>' };
@@ -3673,9 +3720,12 @@
             renderMonthlySlab('grid', actGrid, expGrid, true);
             document.getElementById('ml-pv-toload').textContent = fmt(actSC) + ' kWh';
             document.getElementById('ml-pv-togrid').textContent = fmt(actExp) + ' kWh';
+            const actPvToBatt = md['PV to Battery (kWh)'] || 0;
+            try { document.getElementById('ml-pv-tobatt').textContent = fmt(actPvToBatt) + ' kWh'; } catch(e) {}
 
             // PV Coverage
-            const actCov = actLoad > 0 ? (actSC / actLoad * 100) : 0;
+            const actBattToLoad = md['Battery to Load (kWh)'] || 0;
+            const actCov = actLoad > 0 ? ((actSC + actBattToLoad) / actLoad * 100) : 0;
             const expCov = expLoad > 0 ? (expPV / expLoad * 100) : 0;
             const covOfExp = expCov > 0 ? (actCov / expCov * 100) : 0;
             document.getElementById('ml-cov').textContent = actCov.toFixed(1);
@@ -4129,75 +4179,36 @@
 
         function renderLifetimeSavingsChart(sortedMonths) {
             const ctx = document.getElementById('lifetimeSavChart');
-            if (!ctx || !finConfig || !pvsyst) return;
+            if (!ctx) return;  // finConfig not needed
             const displayMonths = lifetimeRange > 0 ? sortedMonths.slice(-lifetimeRange) : sortedMonths;
             const labels = [];
             const actSavArr = [], predSavArr = [];
-            const fc = finConfig;
-            const rates = fc.rates || {};
             const mt = pvsyst?.monthly_totals_kwh || {};
+            const monthly = dashData.monthly || {};
             const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             const fmtTick = v => 'R' + String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
             const now = new Date();
-            const pipelineHour = dashData.hourly?.current_hour;
-            const currentHour = (pipelineHour !== undefined && pipelineHour !== null) ? pipelineHour : now.getHours();
 
             displayMonths.forEach(ym => {
-                const md = dashData.monthly?.[ym];
-                if (!md) return;
+                const md = monthly[ym]; if (!md) return;
                 const [yr,mm] = ym.split('-').map(Number);
-                const factor = degradationFactor(yr);
-                const season = (fc.seasons||{})[String(mm)] || 'low_demand';
-                const isCurrentMonth = yr === now.getFullYear() && mm === (now.getMonth()+1);
-                const daysInMonth = new Date(yr, mm, 0).getDate();
-                const days = isCurrentMonth ? now.getDate() : daysInMonth;
-
-                const sc = md['Self-consumption (kWh)'] || 0;
-                const exp = md['Export (kWh)'] || 0;
-
-                // Calculate expected PV for this month
-                let expPV;
-                if (isCurrentMonth) {
-                    expPV = 0;
-                    for (let d=1;d<=now.getDate();d++) {
-                        const mmdd = String(mm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-                        const dayPvs = getPvsystDay(mmdd);
-                        if (d<now.getDate()) expPV += dayPvs.reduce((a,b)=>a+b,0);
-                        else { for (let h=0;h<=currentHour;h++) expPV += dayPvs[h]||0; }
-                    }
-                    expPV *= factor;
-                } else {
-                    expPV = (mt[String(mm)]||0) * factor;
-                }
-
-                // Actual savings: distribute SC+Exp across TOU periods using daily patterns
-                let actSav = 0, predSav = 0;
-                const monthPattern = pvsyst.daily_hourly || {};
-                for (let d = 1; d <= days; d++) {
-                    const dt = new Date(yr, mm-1, d);
-                    const wd = dt.getDay();
-                    const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                    const schedule = (fc.tou_schedule||{})[season]?.[dayType] || [];
-                    const mmdd = String(mm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-                    const dayP = monthPattern[mmdd] || new Array(24).fill(0);
-                    const dayTotal = dayP.reduce((a,b)=>a+b,0) || 1;
-
-                    for (let h = 0; h < 24; h++) {
-                        const period = schedule[h] || 'off_peak';
-                        const rate = rates[season]?.[period] || 0;
-                        const credit = (fc.export_credits||{})[period] || 0;
-                        const hourFrac = dayP[h] / dayTotal / days;
-                        actSav += sc * hourFrac * rate + exp * hourFrac * credit;
-                        // Predicted: use expPV with same SC ratio
-                        const predSC = expPV * (sc / ((sc+exp)||1));
-                        const predExp = expPV * (exp / ((sc+exp)||1));
-                        predSav += predSC * hourFrac * rate + predExp * hourFrac * credit;
-                    }
-                }
-
+                const load = md['Consumption (kWh)']||0;
+                const gi = md['Import (kWh)']||0;
+                const exp = md['Export (kWh)']||0;
                 labels.push(monthNames[mm] + ' ' + String(yr).slice(2));
-                actSavArr.push(Math.round(actSav));
-                predSavArr.push(Math.round(predSav));
+
+                // Actual savings via block tariff
+                if (typeof calcBlockSavings === 'function' && load > 0) {
+                    actSavArr.push(Math.round(calcBlockSavings(load, gi, exp).total));
+                } else { actSavArr.push(0); }
+
+                // Predicted savings: PVSyst expected × average block rate for that load level
+                const factor = degradationFactor(yr);
+                const predKwh = (mt[String(mm)]||0) * factor;
+                const predCost = calcBlockCost(load > 0 ? load : predKwh * 1.3);
+                const predLoad = load > 0 ? load : predKwh * 1.3;
+                const predAvgRate = predLoad > 0 ? predCost.cost / predLoad : BLOCK_TARIFF[1].rate;
+                predSavArr.push(Math.round(predKwh * predAvgRate));
             });
 
             if (lifetimeSavChart) lifetimeSavChart.destroy();
@@ -5495,7 +5506,7 @@
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:50},children:[new D.TextRun({text:'NAUTICA SHOPPING CENTRE',font:'Segoe UI',size:22,color:GRAY})]}));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:350},children:[new D.TextRun({text:monthName.toUpperCase()+' '+yr,font:'Segoe UI',size:22,color:GRAY})]}));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:2,color:LIME,space:6}},spacing:{before:150}}));
-            ['PREPARED FOR: MILPROPS','SITE: NAUTICA SHOPPING CENTRE','SYSTEM SIZE: 770KWP 600KVA',
+            ['PREPARED FOR: CLIENT','SITE: 14 PLANE STREET','SYSTEM SIZE: VICTRON HYBRID + BATTERY',
              'DATE: '+now.getFullYear()+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0'),
              'PREPARED BY: BRANDON FEINAUER','CHECKED BY: BETHANY LAFFORD'
             ].forEach(d=>children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:20},children:[new D.TextRun({text:d,font:'Segoe UI',size:17,color:GRAY})]})));
@@ -6412,7 +6423,7 @@
             <div style="padding:14px 20px;display:flex;flex-direction:column;gap:12px;">
                 <div>
                     <label style="color:#94a3b8;font-size:0.78em;display:block;margin-bottom:4px;">Repository Owner</label>
-                    <input type="text" id="ghSetupOwner" class="calc-input" style="width:100%;text-align:left;" placeholder="e.g. Milprops">
+                    <input type="text" id="ghSetupOwner" class="calc-input" style="width:100%;text-align:left;" placeholder="e.g. Owner name">
                 </div>
                 <div>
                     <label style="color:#94a3b8;font-size:0.78em;display:block;margin-bottom:4px;">Repository Name</label>
