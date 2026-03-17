@@ -2065,9 +2065,9 @@
             try {
                 const [dataRes, pvsystRes, irradRes, histRes, finRes, commRes] = await Promise.all([
                     fetch(cacheBust(DATA_URL)),
-                    fetch(cacheBust(PVSYST_URL)),
-                    fetch(cacheBust(IRRAD_URL)),
-                    fetch(cacheBust(DAILY_HIST_URL)),
+                    fetch(cacheBust(PVSYST_URL)).catch(() => ({ok:false})),
+                    fetch(cacheBust(IRRAD_URL)).catch(() => ({ok:false})),
+                    fetch(cacheBust(DAILY_HIST_URL)).catch(() => ({ok:false})),
                     Promise.resolve({ok:false}), // FIN_CONFIG not used
                     Promise.resolve(null) // DT_COMMENTS not used
                 ]);
@@ -2083,13 +2083,17 @@
                 if (finRes.ok) finConfig = await finRes.json();
                 if (commRes && commRes.ok) { try { dtCommentsRemote = await commRes.json(); dtComments = Object.assign({}, dtCommentsRemote); } catch(e) {} }
                 document.getElementById('loadingState').style.display = 'none';
-                renderPublicView();
-                renderClientOverview();
-                if (dashData.last_updated) document.getElementById('lastUpdated').textContent = 'Last updated: ' + dashData.last_updated;
+                try { renderPublicView(); } catch(e) { console.warn('renderPublicView error:', e); }
+                try { renderClientOverview(); } catch(e) { console.warn('renderClientOverview error:', e); }
+                if (dashData.last_updated) {
+                    const el = document.getElementById('lastUpdated');
+                    if (el) el.textContent = 'Last updated: ' + dashData.last_updated;
+                }
             } catch(err) {
                 document.getElementById('loadingState').style.display = 'none';
                 document.getElementById('errorState').style.display = 'block';
-                document.getElementById('errorState').textContent = 'Unable to load solar data. Please try again later.';
+                document.getElementById('errorState').textContent = 'Unable to load solar data. Please try again later. (' + err.message + ')';
+                console.error('Dashboard load error:', err);
             }
         }
 
