@@ -1487,21 +1487,7 @@
                 </div>
                 </div><!-- end dash-block lt-genchart -->
 
-                <div class="dash-block" data-block="lt-savchart" data-block-name="Savings Chart" draggable="false">
-                    <span class="block-handle" title="Drag to reorder">⠿</span>
-                    <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('lt-savchart')">✕</span>
-                <!-- ACTUAL vs PREDICTED SAVINGS CHART -->
-                <div class="chart-container">
-                    <h3>Actual PV Savings vs Predicted Savings</h3>
-                    <div class="chart-legend-row">
-                        <div class="chart-legend-defaults">
-                            <div class="chart-legend-item" data-lds="l-actSav" onclick="toggleLifetimeDs('l-actSav')"><span class="legend-swatch" style="background:rgba(74,222,128,0.7);"></span>Actual Savings</div>
-                            <div class="chart-legend-item" data-lds="l-predSav" onclick="toggleLifetimeDs('l-predSav')"><span class="legend-swatch" style="background:rgba(96,165,250,0.7);"></span>Predicted Savings</div>
-                        </div>
-                    </div>
-                    <div class="chart-wrap"><canvas id="lifetimeSavChart"></canvas></div>
-                </div>
-                </div><!-- end dash-block lt-savchart -->
+<!-- Predicted savings chart removed -->
                 </div><!-- end lifetimeLayout -->
             </div>
 
@@ -1515,87 +1501,55 @@
                 </div>
 
                 <div class="tab-layout" id="financialLayout">
-                <div class="dash-block" data-block="fin-totals" data-block-name="Savings Summary" draggable="false">
-                    <span class="block-handle" title="Drag to reorder">⠿</span>
-                    <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('fin-totals')">✕</span>
+
                 <!-- TOTAL LIFETIME SAVINGS -->
                 <div class="slab" style="text-align:center;margin-bottom:20px;">
                     <div class="slab-label">Total Lifetime Savings</div>
                     <div class="slab-value" style="font-size:2.5em;"><span style="color:#fff;">R </span><span id="fin-total-savings">--</span></div>
                 </div>
 
-                <!-- PEAK / STANDARD / OFF-PEAK SAVINGS -->
-                <div class="fin-tou-grid">
+                <!-- BLOCK BREAKDOWN SLABS -->
+                <div class="fin-tou-grid" style="grid-template-columns:repeat(4,1fr);">
                     <div class="slab" style="text-align:center;">
-                        <div class="slab-label"><span class="tou-pill off-peak" style="font-size:0.9em;">Blocks 1+2</span></div>
-                        <div class="slab-value" style="font-size:1.8em;"><span style="color:#fff;">R </span><span id="fin-peak-savings">--</span></div>
-                        <div class="slab-expected">Block 1: <span class="exp-val" id="fin-peak-pv">R--</span> · Block 2: <span class="exp-val" id="fin-peak-exp">R--</span></div>
+                        <div class="slab-label"><span class="tou-pill off-peak" style="font-size:0.9em;">Block 1 (0–50)</span></div>
+                        <div class="slab-value" style="font-size:1.5em;" id="fin-b1-total">R--</div>
+                        <div class="slab-expected" style="font-size:0.78em;">PV: <span id="fin-b1-pv">R--</span> · Exp: <span id="fin-b1-exp">R--</span></div>
                     </div>
                     <div class="slab" style="text-align:center;">
-                        <div class="slab-label"><span class="tou-pill standard" style="font-size:0.9em;">Blocks 3+4</span></div>
-                        <div class="slab-value" style="font-size:1.8em;"><span style="color:#fff;">R </span><span id="fin-std-savings">--</span></div>
-                        <div class="slab-expected">Block 3: <span class="exp-val" id="fin-std-pv">R--</span> · Block 4: <span class="exp-val" id="fin-std-exp">R--</span></div>
+                        <div class="slab-label"><span class="tou-pill standard" style="font-size:0.9em;">Block 2 (51–350)</span></div>
+                        <div class="slab-value" style="font-size:1.5em;" id="fin-b2-total">R--</div>
+                        <div class="slab-expected" style="font-size:0.78em;">PV: <span id="fin-b2-pv">R--</span> · Exp: <span id="fin-b2-exp">R--</span></div>
                     </div>
                     <div class="slab" style="text-align:center;">
-                        <div class="slab-label"><span class="tou-pill peak" style="font-size:0.9em;">Export Income</span></div>
-                        <div class="slab-value" style="font-size:1.8em;"><span style="color:#fff;">R </span><span id="fin-offpk-savings">--</span></div>
-                        <div class="slab-expected"><span class="exp-val" id="fin-offpk-pv"></span><span class="exp-val" id="fin-offpk-exp"></span></div>
+                        <div class="slab-label"><span class="tou-pill peak" style="font-size:0.9em;">Block 3 (351–600)</span></div>
+                        <div class="slab-value" style="font-size:1.5em;" id="fin-b3-total">R--</div>
+                        <div class="slab-expected" style="font-size:0.78em;">PV: <span id="fin-b3-pv">R--</span> · Exp: <span id="fin-b3-exp">R--</span></div>
+                    </div>
+                    <div class="slab" style="text-align:center;">
+                        <div class="slab-label"><span class="tou-pill peak" style="font-size:0.9em;background:rgba(239,68,68,0.3);">Block 4 (600+)</span></div>
+                        <div class="slab-value" style="font-size:1.5em;" id="fin-b4-total">R--</div>
+                        <div class="slab-expected" style="font-size:0.78em;">PV: <span id="fin-b4-pv">R--</span> · Exp: <span id="fin-b4-exp">R--</span></div>
                     </div>
                 </div>
 
-                </div><!-- end dash-block fin-totals -->
-
-                <div class="dash-block" data-block="fin-savchart" data-block-name="Savings Chart" draggable="false">
-                    <span class="block-handle" title="Drag to reorder">⠿</span>
-                    <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('fin-savchart')">✕</span>
                 <!-- MONTHLY SAVINGS CHART -->
                 <div class="chart-container">
                     <h3>Monthly Savings Breakdown</h3>
                     <div class="month-selector" style="margin-top:10px;">
                         <button class="lt-range-btn" onclick="setFinRange(3,this)">3M</button>
                         <button class="lt-range-btn" onclick="setFinRange(6,this)">6M</button>
-                        <button class="lt-range-btn" onclick="setFinRange(9,this)">9M</button>
                         <button class="lt-range-btn" onclick="setFinRange(12,this)">12M</button>
                         <button class="lt-range-btn active" onclick="setFinRange(0,this)">All</button>
-                    </div>
-                    <div class="chart-legend-row" id="finSavLegend">
-                        <div class="chart-legend-defaults">
-                            <div class="chart-legend-item" data-fds="f-peak" onclick="toggleFinDs('f-peak')"><span class="legend-swatch" style="background:#4ade80;"></span>PV Savings</div>
-                            <div class="chart-legend-item" data-fds="f-std" onclick="toggleFinDs('f-std')"><span class="legend-swatch" style="background:#38bdf8;"></span>Export Income</div>
-                            <div class="chart-legend-item" data-fds="f-offpk" onclick="toggleFinDs('f-offpk')"><span class="legend-swatch" style="background:#ffd700;border-style:solid;"></span>Cumulative</div>
-                            
-                        </div>
                     </div>
                     <div class="chart-wrap" style="height:350px;"><canvas id="finSavChart"></canvas></div>
                 </div>
 
-                </div><!-- end dash-block fin-savchart -->
-
-                <div class="dash-block" data-block="fin-genchart" data-block-name="TOU Distribution" draggable="false">
-                    <span class="block-handle" title="Drag to reorder">⠿</span>
-                    <span class="block-hide" title="Hide section" onclick="event.stopPropagation();hideBlock('fin-genchart')">✕</span>
-                <!-- COST COMPARISON -->
+                <!-- COST COMPARISON CHART -->
                 <div class="chart-container">
                     <h3>Monthly Cost: With vs Without Solar</h3>
-                    <div class="chart-legend-row" id="finGenLegend">
-                        <div class="chart-legend-defaults">
-                            <div class="chart-legend-item" data-fds="fg-peak" onclick="toggleFinDs('fg-peak')"><span class="legend-swatch" style="background:#ef4444;"></span>Without Solar</div>
-                            <div class="chart-legend-item" data-fds="fg-std" onclick="toggleFinDs('fg-std')"><span class="legend-swatch" style="background:#4ade80;"></span>With Solar</div>
-                            
-                        </div>
-                    </div>
                     <div class="chart-wrap" style="height:350px;"><canvas id="finGenChart"></canvas></div>
-                    <!-- Data Table -->
-                    <div class="daily-savings-table" style="margin-top:20px;">
-                        <div class="env-table-wrap">
-                            <table class="env-table">
-                                <thead><tr><th>Block</th><th>Generation (kWh)</th><th>% of Total</th></tr></thead>
-                                <tbody id="finGenTableBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
-                </div><!-- end dash-block fin-genchart -->
+
                 </div><!-- end financialLayout -->
             </div>
 
@@ -3439,17 +3393,16 @@
                 const bs = calcBlockSavings(mLoad, mGI, mExp);
                 // Render same as monthly
                 const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
-                let h = '', totPvS = 0, totUtil = 0, totGen = 0;
+                let h = '', totPvS = 0, totUtil = 0, totGen = 0, totExpS = 0;
                 bs.blockSavings.forEach((b, i) => {
-                    totPvS += b.cost;
+                    const genKwh = (b.kwh||0) + (b.exportKwh||0);
                     const utilCost = (bs.withSolar > 0 && mGI > 0) ? calcBlockCost(mGI).blocks[i].cost : 0;
-                    totUtil += utilCost;
-                    totGen += b.kwh;
-                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(b.kwh,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(b.cost)+'</td><td></td><td style="color:var(--green)">R'+fmt(b.cost)+'</td></tr>';
+                    const expCost = b.exportCost || 0;
+                    totPvS += b.cost; totUtil += utilCost; totGen += genKwh; totExpS += expCost;
+                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(genKwh,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(b.cost)+'</td><td style="color:#38bdf8">R'+fmt(expCost)+'</td><td style="color:var(--green)">R'+fmt(b.cost + expCost)+'</td></tr>';
                 });
-                const expInc = bs.exportIncome;
-                if (expInc > 0) h += '<tr><td style="text-align:left"><span class="tou-pill standard">Export</span></td><td>'+fmtDec(mExp,1)+' kWh</td><td></td><td></td><td style="color:#38bdf8">R'+fmt(expInc)+'</td><td style="color:#38bdf8">R'+fmt(expInc)+'</td></tr>';
-                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(totGen)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(expInc)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(bs.total)+'</td></tr>';
+                if (mExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(mExp,1)+' kWh (included above)</td></tr>';
+                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(totGen)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(bs.total)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
             }
@@ -4320,68 +4273,64 @@
 
             document.getElementById('financialStatus').textContent = 'Financial data: ' + finSortedMonths[0] + ' to ' + finSortedMonths[finSortedMonths.length-1] + ' (' + finSortedMonths.length + ' months)';
 
-            // Calculate block tariff savings per month
-            let grandTotal=0, blockTotals=[0,0,0,0], totalExp=0;
-            const peakArr=[], stdArr=[], offArr=[], cumArr=[];
-            let cum=0;
-            const withoutArr=[], withArr=[];
+            // Calculate block savings per month (same logic as lifetime tab)
+            let blockPV = [0,0,0,0], blockExp = [0,0,0,0], grandTotal = 0;
+            const pvSavArr = [], expSavArr = [], cumArr = [], withoutArr = [], withArr = [];
+            let cum = 0;
 
             finSortedMonths.forEach(ym => {
-                const md = monthly[ym]; if(!md) return;
+                const md = monthly[ym]; if (!md) return;
                 const load = md['Consumption (kWh)']||0;
                 const gi = md['Import (kWh)']||0;
                 const exp = md['Export (kWh)']||0;
                 const bs = calcBlockSavings(load, gi, exp);
                 grandTotal += bs.total;
-                totalExp += bs.exportIncome;
-                bs.blockSavings.forEach((b,i) => blockTotals[i] += b.cost);
-                // For chart: use PV savings and export
-                peakArr.push(bs.pvSavings); stdArr.push(bs.exportIncome);
+                bs.blockSavings.forEach((b,i) => { blockPV[i] += b.cost; blockExp[i] += (b.exportCost||0); });
+                pvSavArr.push(bs.pvSavings);
+                expSavArr.push(bs.exportIncome);
                 cum += bs.total; cumArr.push(cum);
-                withoutArr.push(bs.withoutSolar); withArr.push(bs.withSolar);
+                withoutArr.push(bs.withoutSolar);
+                withArr.push(bs.withSolar);
             });
 
+            // Fill slabs
             document.getElementById('fin-total-savings').textContent = fmt(grandTotal);
-            document.getElementById('fin-peak-savings').textContent = fmt(blockTotals[0]+blockTotals[1]);
-            document.getElementById('fin-peak-pv').textContent = 'R'+fmt(blockTotals[0]);
-            document.getElementById('fin-peak-exp').textContent = 'R'+fmt(blockTotals[1]);
-            document.getElementById('fin-std-savings').textContent = fmt(blockTotals[2]+blockTotals[3]);
-            document.getElementById('fin-std-pv').textContent = 'R'+fmt(blockTotals[2]);
-            document.getElementById('fin-std-exp').textContent = 'R'+fmt(blockTotals[3]);
-            document.getElementById('fin-offpk-savings').textContent = fmt(totalExp);
-            document.getElementById('fin-offpk-pv').textContent = '';
-            document.getElementById('fin-offpk-exp').textContent = 'R'+fmt(totalExp);
+            for (let i = 0; i < 4; i++) {
+                document.getElementById('fin-b'+(i+1)+'-total').textContent = 'R'+fmt(blockPV[i]+blockExp[i]);
+                document.getElementById('fin-b'+(i+1)+'-pv').textContent = 'R'+fmt(blockPV[i]);
+                document.getElementById('fin-b'+(i+1)+'-exp').textContent = 'R'+fmt(blockExp[i]);
+            }
 
-            // Render charts directly
+            // Monthly Savings chart
             const cm = chartMobile();
-            const ctx1 = document.getElementById('finSavChart');
+            const displayMonths = finRange > 0 ? finSortedMonths.slice(-finRange) : finSortedMonths;
+            const offset = finSortedMonths.length - displayMonths.length;
+
             if (finSavChart) finSavChart.destroy();
-            finSavChart = new Chart(ctx1, {
-                type:'bar', data:{labels:finSortedMonths, datasets:[
-                    {label:'PV Savings',data:peakArr,backgroundColor:'rgba(74,222,128,0.6)',borderColor:'#4ade80',borderWidth:1},
-                    {label:'Export Income',data:stdArr,backgroundColor:'rgba(56,189,248,0.5)',borderColor:'#38bdf8',borderWidth:1},
-                    {label:'Cumulative',data:cumArr,type:'line',borderColor:'#ffd700',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#ffd700',yAxisID:'y1'}
+            finSavChart = new Chart(document.getElementById('finSavChart'), {
+                type:'bar', data:{labels: displayMonths, datasets:[
+                    {label:'PV Savings',data:pvSavArr.slice(offset),backgroundColor:'rgba(74,222,128,0.6)',borderColor:'#4ade80',borderWidth:1,stack:'s'},
+                    {label:'Export Income',data:expSavArr.slice(offset),backgroundColor:'rgba(56,189,248,0.5)',borderColor:'#38bdf8',borderWidth:1,stack:'s'},
+                    {label:'Cumulative',data:cumArr.slice(offset),type:'line',borderColor:'#ffd700',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#ffd700',yAxisID:'y1'}
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
                     plugins:{legend:{labels:{color:'#aaa',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
-                    scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'},stacked:true,title:{display:cm.showAxisTitles,text:'Rands (R)',color:'#888'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:cm.showAxisTitles,text:'Cumulative (R)',color:'#ffd700'}}}}
+                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'},title:{display:cm.showAxisTitles,text:'Rands (R)',color:'#888'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:cm.showAxisTitles,text:'Cumulative (R)',color:'#ffd700'}}}}
             });
+
             // Cost comparison chart
-            const ctx2 = document.getElementById('finGenChart');
             if (finGenChart) finGenChart.destroy();
-            finGenChart = new Chart(ctx2, {
-                type:'bar', data:{labels:finSortedMonths, datasets:[
-                    {label:'Without Solar',data:withoutArr,backgroundColor:'rgba(239,68,68,0.5)',borderColor:'#ef4444',borderWidth:1},
-                    {label:'With Solar',data:withArr,backgroundColor:'rgba(74,222,128,0.5)',borderColor:'#4ade80',borderWidth:1}
+            finGenChart = new Chart(document.getElementById('finGenChart'), {
+                type:'bar', data:{labels: displayMonths, datasets:[
+                    {label:'Without Solar',data:withoutArr.slice(offset),backgroundColor:'rgba(239,68,68,0.5)',borderColor:'#ef4444',borderWidth:1},
+                    {label:'With Solar',data:withArr.slice(offset),backgroundColor:'rgba(74,222,128,0.5)',borderColor:'#4ade80',borderWidth:1}
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
                     plugins:{legend:{labels:{color:'#aaa',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
                     scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#888'},title:{display:cm.showAxisTitles,text:'Rands (R)',color:'#888'}}}}
             });
-
         }
 
-        // renderFinSavChart and renderFinGenChart are now inline in renderFinancialTab above
         function renderFinSavChart() {}
         function renderFinGenChart() {}
         function calcDaySavings(yr, mo, day, sc, exp) {
