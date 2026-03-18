@@ -2047,7 +2047,7 @@
             if (tab === 'daily' && dashData) {
                 const dp = document.getElementById('dailyDatePicker');
                 if (!dp.value) {
-                    dp.value = dashData.today?.date || new Date().toISOString().split('T')[0];
+                    dp.value = dashData.today?.date || Object.keys(dailyHist||{}).sort().pop() || new Date().toISOString().split('T')[0];
                     loadDailyDate(dp.value);
                 }
             }
@@ -3249,7 +3249,7 @@
         const dailyDsVis = { 'd-predicted': true, 'd-pvGen': true, 'd-irrad': true, 'd-load': false, 'd-expLoad': false, 'd-grid': false, 'd-expGrid': false };
 
         function goToDaily() {
-            const todayDate = dashData?.today?.date || new Date().toISOString().split('T')[0];
+            const todayDate = dashData?.today?.date || Object.keys(dailyHist||{}).sort().pop() || new Date().toISOString().split('T')[0];
             document.getElementById('dailyDatePicker').value = todayDate;
             const btn = document.querySelectorAll('.tab-nav button')[1];
             switchTab('daily', btn);
@@ -3276,7 +3276,7 @@
         }
 
         function goToDailyToday() {
-            const today = dashData?.today?.date || new Date().toISOString().split('T')[0];
+            const today = dashData?.today?.date || Object.keys(dailyHist||{}).sort().pop() || new Date().toISOString().split('T')[0];
             document.getElementById('dailyDatePicker').value = today;
             loadDailyDate(today);
         }
@@ -3320,9 +3320,13 @@
                 export: t['Export (kWh)'] || 0,
                 self_consumption: t['Self-consumption (kWh)'] || 0,
                 consumption: t['Consumption (kWh)'] || 0,
-                hourly: { pv: h.pv || [], load: h.load || [], grid: h.grid || [], export: h.export || [] },
+                batt_to_cons: t['Battery to Load (kWh)'] || 0,
+                pv_to_batt: t['PV to Battery (kWh)'] || 0,
+                batt_to_grid: t['Battery to Grid (kWh)'] || 0,
+                grid_to_batt: t['Grid to Battery (kWh)'] || 0,
+                hourly: { pv: h.pv || [], load: h.load || [], grid: h.grid || [], batt: h.batt || [], export: h.export || [] },
                 tou_breakdown: null,
-                savings: dashData.savings?.today || {}
+                savings: {}
             };
             renderDailyTab(dateStr, record);
         }
