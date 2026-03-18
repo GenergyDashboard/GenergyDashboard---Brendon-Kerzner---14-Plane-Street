@@ -1954,12 +1954,8 @@
         }
 
         function logout() {
-            isLoggedIn = false;
-            localStorage.removeItem('nautica-auth'); localStorage.removeItem('nautica-auth-ts');
-            document.getElementById('editLayoutBtn').style.display = 'none';
-            document.getElementById('calcConfigBtn').style.display = 'none';
-            if (document.body.classList.contains('edit-mode')) toggleEditMode();
-            showPublicView();
+            // Auth disabled - just reload
+            location.reload();
         }
 
         // ══════════════════════════════════════════════════
@@ -6352,11 +6348,11 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await loadCredentials();
-            if (checkSession()) {
-                isLoggedIn = true;
-                showClientView();
-            }
+            // Auth disabled - always show client view
+            isLoggedIn = true;
+            showClientView();
+            const loginEl = document.getElementById('loginSection');
+            if (loginEl) loginEl.style.display = 'none';
             loadData().then(() => startAutoRefresh());
         });
     </script>
