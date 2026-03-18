@@ -60,6 +60,25 @@
 
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
 
+
+        /* ══════════════════════════════════════════════════ */
+        /* CHART TEXT CLARITY OVERRIDE                        */
+        /* ══════════════════════════════════════════════════ */
+        .chart-container h3 { color: #f0f0f0 !important; font-size: 1.1em !important; font-weight: 700 !important; }
+        .chart-legend-item { color: #ddd !important; font-size: 0.88em !important; }
+        .env-table thead th { color: #ddd !important; font-size: 0.88em !important; font-weight: 700 !important; letter-spacing: 0.5px; }
+        .env-table tbody td { color: #ccc !important; }
+        .env-table tbody tr.total-row td { color: #fff !important; }
+        .slab-label { color: #ddd !important; font-weight: 700 !important; }
+        .slab-expected { color: #bbb !important; }
+        .slab-perf .perf-label { color: #bbb !important; }
+        .env-section-title { color: #eee !important; }
+        .env-box h3 { color: #ddd !important; }
+        .env-row .env-name { color: #bbb !important; }
+        .daily-savings-table h3 { color: #eee !important; }
+        .flow-line .fl-label { color: #4ade80 !important; font-size: 0.88em !important; }
+        .flow-line .fl-value { color: #fff !important; font-size: 0.95em !important; }
+
         /* ══════════════════════════════════════════════════ */
         /* HEADER                                             */
         /* ══════════════════════════════════════════════════ */
@@ -411,11 +430,11 @@
             50% { opacity: 1; }
         }
         .flow-line .fl-label {
-            font-size: var(--font-xs); color: var(--green); font-weight: 600;
+            font-size: var(--font-xs); color: #6ee7a0; font-weight: 700;
             position: relative; z-index: 1; text-shadow: 0 0 8px rgba(74,222,128,0.5);
         }
         .flow-line .fl-value {
-            font-size: var(--font-base); color: #fff; font-weight: 700;
+            font-size: var(--font-base); color: #fff; font-weight: 800;
             position: relative; z-index: 1;
         }
 
@@ -427,8 +446,8 @@
         #tab-lifetime .env-box h3 { min-height: 2.4em; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
         .env-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
         .env-row:last-child { border-bottom: none; }
-        .env-row .env-name { color: var(--text-secondary); font-size: var(--font-xs); }
-        .env-row .env-val { color: var(--green); font-weight: 600; font-size: var(--font-base); }
+        .env-row .env-name { color: #bbb; font-size: var(--font-xs); }
+        .env-row .env-val { color: var(--green); font-weight: 700; font-size: var(--font-base); }
 
         /* Hourly Chart */
         .chart-container {
@@ -438,7 +457,7 @@
         .chart-container h3 { font-size: var(--font-base); font-weight: 600; margin-bottom: 5px; color: #eee; }
         .chart-legend-row { display: grid; grid-template-columns: 1fr auto 1fr; margin-bottom: 15px; align-items: start; }
         .chart-legend-defaults { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; grid-column: 2; }
-        .chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: var(--font-xs); color: var(--text-secondary); cursor: pointer; user-select: none; }
+        .chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: var(--font-xs); color: #ccc; cursor: pointer; user-select: none; }
         .chart-legend-item.off { opacity: 0.35; text-decoration: line-through; }
         .chart-legend-more { grid-column: 3; justify-self: end; position: relative; z-index: 10; }
         .more-btn { font-size: var(--font-xs); color: #94a3b8; cursor: pointer; padding: 4px 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; user-select: none; }
@@ -1824,7 +1843,7 @@
             default_sc_ratio: 0.8,
             default_sc_ratio_tou: 0.9,
             // Daily expected: SC fraction of PV (1.0 = all to load, no export)
-            daily_exp_sc_fraction: 1.0
+            daily_exp_sc_fraction: 0.35  // ~35% of PV goes directly to load (rest to battery/grid)
         };
         let CC = Object.assign({}, CALC_DEFAULTS);
         // Load saved config from localStorage
@@ -2062,6 +2081,24 @@
                     try { const r = await fetch(IRRAD_API); if (r.ok) irradData = await r.json(); } catch(e) {}
                 }
                 if (histRes.ok) dailyHist = await histRes.json();
+                // Ensure today's data is in dailyHist
+                const todayDate = dashData?.today?.date;
+                if (todayDate && dashData.today?.data && dailyHist) {
+                    const t = dashData.today.data;
+                    const h = dashData.hourly || {};
+                    if (!dailyHist[todayDate]) {
+                        dailyHist[todayDate] = {
+                            pv: t['PV Yield (kWh)']||0, consumption: t['Consumption (kWh)']||0,
+                            import: t['Import (kWh)']||0, export: t['Export (kWh)']||0,
+                            self_consumption: t['Self-consumption (kWh)']||0,
+                            batt_to_cons: t['Battery to Load (kWh)']||0,
+                            pv_to_batt: t['PV to Battery (kWh)']||0,
+                            batt_to_grid: t['Battery to Grid (kWh)']||0,
+                            grid_to_batt: t['Grid to Battery (kWh)']||0,
+                            hourly: { pv: h.pv||[], load: h.load||[], grid: h.grid||[], batt: h.batt||[], export: h.export||[] }
+                        };
+                    }
+                }
                 if (finRes.ok) finConfig = await finRes.json();
                 if (commRes && commRes.ok) { try { dtCommentsRemote = await commRes.json(); dtComments = Object.assign({}, dtCommentsRemote); } catch(e) {} }
                 document.getElementById('loadingState').style.display = 'none';
@@ -2095,6 +2132,24 @@
                 ]);
                 if (dataRes.ok) dashData = await dataRes.json();
                 if (histRes.ok) dailyHist = await histRes.json();
+                // Ensure today's data is in dailyHist
+                const todayDate = dashData?.today?.date;
+                if (todayDate && dashData.today?.data && dailyHist) {
+                    const t = dashData.today.data;
+                    const h = dashData.hourly || {};
+                    if (!dailyHist[todayDate]) {
+                        dailyHist[todayDate] = {
+                            pv: t['PV Yield (kWh)']||0, consumption: t['Consumption (kWh)']||0,
+                            import: t['Import (kWh)']||0, export: t['Export (kWh)']||0,
+                            self_consumption: t['Self-consumption (kWh)']||0,
+                            batt_to_cons: t['Battery to Load (kWh)']||0,
+                            pv_to_batt: t['PV to Battery (kWh)']||0,
+                            batt_to_grid: t['Battery to Grid (kWh)']||0,
+                            grid_to_batt: t['Grid to Battery (kWh)']||0,
+                            hourly: { pv: h.pv||[], load: h.load||[], grid: h.grid||[], batt: h.batt||[], export: h.export||[] }
+                        };
+                    }
+                }
                 if (commRes && commRes.ok) { try { dtCommentsRemote = await commRes.json(); dtComments = Object.assign({}, dtCommentsRemote); } catch(e) {} }
 
                 // Re-render current view
@@ -2816,7 +2871,7 @@
             const dailyData = [];
             let totalActPV = 0, totalExpPV = 0;
             for (let d = 1; d <= numDays; d++) {
-                const dateStr = yr+'-'+mm+'-'+String(d).padStart(2,'0');
+                const dateStr = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
                 const dh = dailyHist?.[dateStr];
                 const mmdd = mm+'-'+String(d).padStart(2,'0');
                 const dayPvs = getPvsystDay(mmdd);
@@ -2877,13 +2932,13 @@
                     responsive:true, maintainAspectRatio:false,
                     layout:{padding:{top:25,right:10}},
                     interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
+                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#eee',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
                         if(c.dataset.label.includes('Irrad')) return c.dataset.label+': '+fmtTick(c.parsed.y)+' kWh (scaled)';
                         return c.dataset.label+': '+fmtTick(c.parsed.y)+' kWh';
                     }}}},
                     scales:{
-                        x:{stacked:true, grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{stacked:true, beginAtZero:true, max:yMax, title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
+                        x:{stacked:true, grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
+                        y:{stacked:true, beginAtZero:true, max:yMax, title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#ddd',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
                         yLine:{type:'linear',display:false,beginAtZero:true,max:yMax,stacked:false}
                     },
                     onClick: (evt, elems) => {
@@ -2970,13 +3025,13 @@
                 options: {
                     responsive:true, maintainAspectRatio:false,
                     interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
+                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#eee',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
                         if (c.datasetIndex===0) return c.dataset.label+': '+c.parsed.y.toFixed(1)+'%';
                         return c.dataset.label+': '+fmtTick(c.parsed.y)+' kWh';
                     }}}},
                     scales:{
-                        x:{stacked:true, grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{stacked:true, beginAtZero:true, max:ltYMax, title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
+                        x:{stacked:true, grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
+                        y:{stacked:true, beginAtZero:true, max:ltYMax, title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#ddd',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
                         yLine:{type:'linear',display:false,beginAtZero:true,max:ltYMax,stacked:false},
                         y2:{position:'right',beginAtZero:true,suggestedMin:50,suggestedMax:120,title:{display:chartMobile().showAxisTitles,text:'Performance (%)',color:'#FFD700',font:{size:chartMobile().titleFont}},grid:{drawOnChartArea:false},ticks:{color:'#FFD700',font:{size:chartMobile().tickFont},callback:v=>Math.round(v)+'%'}}
                     }
@@ -3199,7 +3254,7 @@
                     plugins:{
                         legend:{display:false},
                         tooltip:{
-                            backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',
+                            backgroundColor:'#111',titleColor:'#fff',bodyColor:'#eee',
                             titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},
                             borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,
                             filter: item => [4,5,6,7].includes(item.datasetIndex),
@@ -3210,8 +3265,8 @@
                         }
                     },
                     scales:{
-                        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:0,autoSkipPadding:isMobile()?6:3},title:{display:chartMobile().showAxisTitles,text:'Hour',color:'#bbb',font:{size:chartMobile().titleFont}}},
-                        y:{beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'PV Output (kW)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont}}}
+                        x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},maxRotation:0,autoSkipPadding:isMobile()?6:3},title:{display:chartMobile().showAxisTitles,text:'Hour',color:'#ddd',font:{size:chartMobile().titleFont}}},
+                        y:{beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'PV Output (kW)',color:'#ddd',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont}}}
                     }
                 }
             });
@@ -3342,7 +3397,12 @@
 
             // PV Coverage
             const actCov = actLoad > 0 ? (actSC / actLoad * 100) : 0;
-            const expSC = expPV * CC.daily_exp_sc_fraction;
+            // Expected coverage uses actual SC ratio (PV→Load / PV total)
+            // Expected PV coverage uses actual SC ratio from data
+            const lifeSC = dashData.all_time_totals?.['Self-consumption (kWh)'] || 0;
+            const lifePV = dashData.all_time_totals?.['PV Yield (kWh)'] || 1;
+            const scFraction = lifePV > 0 ? lifeSC / lifePV : 0.35;
+            const expSC = expPV * scFraction;
             const expCov = expLoad > 0 ? (expSC / expLoad * 100) : 0;
             const covOfExp = expCov > 0 ? (actCov / expCov * 100) : 0;
 
@@ -3424,21 +3484,32 @@
                 const ym = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0');
                 const dayNum = dateObj.getDate();
                 const mm = String(dateObj.getMonth()+1).padStart(2,'0');
-                // Sum load from day 1 to day before this one = cumulative prior load
-                let priorLoad = 0;
-                for (let d = 1; d < dayNum; d++) {
-                    const ds = dateObj.getFullYear()+'-'+mm+'-'+String(d).padStart(2,'0');
-                    const dh = dailyHist?.[ds];
-                    if (dh) priorLoad += (dh.consumption || 0);
-                }
-                // Today's values
+                const yr = dateObj.getFullYear();
+                // Today's values (declare first - needed by fallback below)
                 const dayLoad = rec.consumption || 0;
                 const dayGI = rec.import || 0;
                 const dayExp = rec.export || 0;
-                const daySC = rec.self_consumption || 0; // PV to consumers
-                const dayBattCons = rec.batt_to_cons || 0; // Battery to consumers
-                const dayPVsav = daySC + dayBattCons; // Total that saved them from grid
+                const daySC = rec.self_consumption || 0;
+                const dayBattCons = rec.batt_to_cons || 0;
+                const dayPVsav = daySC + dayBattCons;
                 const dayPV = rec.pv || 0;
+                // Sum load from day 1 to day before this one = cumulative prior load
+                let priorLoad = 0;
+                if (dailyHist) {
+                    for (let d = 1; d < dayNum; d++) {
+                        const ds = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
+                        if (dailyHist[ds]) priorLoad += (dailyHist[ds].consumption || 0);
+                    }
+                }
+                // If no daily history found, use monthly total minus today as estimate
+                if (priorLoad === 0 && dayNum > 1) {
+                    const md = dashData.monthly?.[ym] || {};
+                    const mLoad = md['Consumption (kWh)'] || 0;
+                    // Better estimate: average daily load × prior days
+                    if (mLoad > 0) {
+                        priorLoad = Math.max(0, mLoad - dayLoad);
+                    }
+                }
                 // Determine which block(s) this day's consumption falls into
                 // priorLoad tells us where in the blocks we start
                 const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
@@ -3657,7 +3728,7 @@
         let monthlyTOUChart = null;
         let monthlyInited = false;
         let monthlyChartYM = ''; // Track which month is displayed for click-to-navigate
-        const monthlyDsVis = { 'm-actGen':true,'m-irrad':true,'m-actLoad':false,'m-actGrid':false,'m-avgPV':true,'m-avgExpPV':true,'m-actPeak':true,'m-actStd':true,'m-actOff':true,'m-expPeak':false,'m-expStd':false,'m-expOff':false };
+        const monthlyDsVis = { 'm-actGen':true,'m-irrad':true,'m-actLoad':false,'m-actGrid':false,'m-avgPV':true,'m-avgExpPV':true };
 
         function goToMonthly() {
             const btn = document.querySelectorAll('.tab-nav button')[2];
@@ -3791,7 +3862,11 @@
 
             // PV Coverage
             const actCov = actLoad > 0 ? (actSC / actLoad * 100) : 0;
-            const expCov = expLoad > 0 ? (expPV / expLoad * 100) : 0;
+            const lifeSC2 = dashData.all_time_totals?.['Self-consumption (kWh)'] || 0;
+            const lifePV2 = dashData.all_time_totals?.['PV Yield (kWh)'] || 1;
+            const scFraction2 = lifePV2 > 0 ? lifeSC2 / lifePV2 : 0.35;
+            const expSCMonth = expPV * scFraction2;
+            const expCov = expLoad > 0 ? (expSCMonth / expLoad * 100) : 0;
             const covOfExp = expCov > 0 ? (actCov / expCov * 100) : 0;
             document.getElementById('ml-cov').textContent = actCov.toFixed(1);
             document.getElementById('ml-cov-exp').textContent = expCov.toFixed(1);
@@ -3892,7 +3967,7 @@
 
             const dailyData = [];
             for (let d = 1; d <= numDays; d++) {
-                const dateStr = yr+'-'+mm+'-'+String(d).padStart(2,'0');
+                const dateStr = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
                 const dh = dailyHist?.[dateStr];
                 const mmdd = mm+'-'+String(d).padStart(2,'0');
                 const dayPvs = getPvsystDay(mmdd);
@@ -3901,7 +3976,7 @@
                     dayExpPV = 0; for (let h=0;h<=currentHour;h++) dayExpPV += dayPvs[h]||0;
                 } else { dayExpPV = dayPvs.reduce((a,b)=>a+b,0); }
                 dayExpPV *= factor;
-                const dayActPV = dh ? dh.pv : 0;
+                const dayActPV = dh ? (dh.pv || 0) : 0;
                 const dayActLoad = dh ? dh.consumption : 0;
                 const dayActGrid = dh ? (dh.import||0) : 0;
                 totalActPV += dayActPV; totalExpPV += dayExpPV;
@@ -3952,13 +4027,13 @@
                     responsive:true, maintainAspectRatio:false,
                     layout:{padding:{top:25,right:10}},
                     interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
+                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#eee',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
                         const suffix=c.dataset.label.includes('Irrad')?'kWh (scaled)':'kWh';
                         return c.dataset.label+': '+fmtTick(c.parsed.y)+' '+suffix;
                     }}}},
                     scales:{
-                        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{position:'left',beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:(v)=>fmtTick(v)}}
+                        x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
+                        y:{position:'left',beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#ddd',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},callback:(v)=>fmtTick(v)}}
                     },
                     onClick: (evt, elems) => {
                         if (elems.length > 0) {
@@ -4258,13 +4333,13 @@
                 options: {
                     responsive:true, maintainAspectRatio:false,
                     interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
+                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#eee',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>{
                         if (c.datasetIndex===0) return c.dataset.label+': '+c.parsed.y.toFixed(1)+'%';
                         return c.dataset.label+': '+fmtTick(c.parsed.y)+' kWh';
                     }}}},
                     scales:{
-                        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{position:'left',beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
+                        x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
+                        y:{position:'left',beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Energy (kWh)',color:'#ddd',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}},
                         y2:{position:'right',beginAtZero:true,suggestedMin:50,suggestedMax:120,title:{display:chartMobile().showAxisTitles,text:'Performance (%)',color:'#FFD700',font:{size:chartMobile().titleFont}},grid:{drawOnChartArea:false},ticks:{color:'#FFD700',font:{size:chartMobile().tickFont},callback:v=>Math.round(v)+'%'}}
                     }
                 }
@@ -4318,10 +4393,10 @@
                 options: {
                     responsive:true, maintainAspectRatio:false,
                     interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#ccc',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>'R '+String(Math.round(c.parsed.y)).replace(/\B(?=(\d{3})+(?!\d))/g,' ')}}},
+                    plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',titleColor:'#fff',bodyColor:'#eee',titleFont:{size:chartMobile().tooltipTitleFont},bodyFont:{size:chartMobile().tooltipBodyFont},borderColor:'rgba(255,255,255,0.1)',borderWidth:1,padding:chartMobile().tooltipPad,callbacks:{label:c=>'R '+String(Math.round(c.parsed.y)).replace(/\B(?=(\d{3})+(?!\d))/g,' ')}}},
                     scales:{
-                        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
-                        y:{beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Savings (R)',color:'#bbb',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#bbb',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}}
+                        x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},maxRotation:45,minRotation:isMobile()?0:45,autoSkip:true,maxTicksLimit:isMobile()?8:20}},
+                        y:{beginAtZero:true,title:{display:chartMobile().showAxisTitles,text:'Savings (R)',color:'#ddd',font:{size:chartMobile().titleFont}},grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#ddd',font:{size:chartMobile().tickFont},callback:v=>fmtTick(v)}}
                     }
                 }
             });
@@ -4413,8 +4488,8 @@
                     {label:'Cumulative',data:cumArr.slice(offset),type:'line',borderColor:'#ffd700',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#ffd700',yAxisID:'y1'}
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{labels:{color:'#aaa',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
-                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#aaa'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#aaa'},title:{display:true,text:'Rands (R)',color:'#888'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:true,text:'Cumulative (R)',color:'#ffd700'}}}}
+                    plugins:{legend:{labels:{color:'#ddd',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
+                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#ccc'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:true,text:'Cumulative (R)',color:'#ffd700'}}}}
             });
 
             // Cost comparison chart
@@ -4425,8 +4500,8 @@
                     {label:'With Solar',data:withArr.slice(offset),backgroundColor:'rgba(74,222,128,0.5)',borderColor:'#4ade80',borderWidth:1}
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-                    plugins:{legend:{labels:{color:'#aaa',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
-                    scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#aaa'}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#aaa'},title:{display:true,text:'Rands (R)',color:'#888'}}}}
+                    plugins:{legend:{labels:{color:'#ddd',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
+                    scales:{x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#ccc'}}}}
             });
         }
 
@@ -4478,7 +4553,7 @@
             // Get daily data and calculate per-day savings
             for (let d = 1; d <= numDays; d++) {
                 labels.push(String(d));
-                const dateStr = yr+'-'+mm+'-'+String(d).padStart(2,'0');
+                const dateStr = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
                 const dh = dailyHist?.[dateStr];
                 if (dh) {
                     const dayLoad = dh.consumption || 0;
@@ -4486,9 +4561,10 @@
                     const dayExp = dh.export || 0;
                     // Use monthly avg rate for daily estimate
                     const avgRate = mLoad > 0 ? calcBlockCost(mLoad).cost / mLoad : BLOCK_TARIFF[1].rate;
-                    const pvGen = dh.pv || 0;
-                    const pvToLoad = pvGen - dayExp;
-                    pvSavArr.push(Math.round(pvToLoad * avgRate));
+                    const pvToLoad = dh.self_consumption || 0;
+                    const battToLoad = dh.batt_to_cons || 0;
+                    const pvSavKwh = pvToLoad + battToLoad;
+                    pvSavArr.push(Math.round(pvSavKwh * avgRate));
                     expSavArr.push(Math.round(dayExp * avgRate));
                 } else {
                     pvSavArr.push(0);
