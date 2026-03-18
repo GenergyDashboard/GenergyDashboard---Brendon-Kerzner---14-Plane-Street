@@ -3383,26 +3383,40 @@
 
         function renderDailySavingsTable(rec, dateObj) {
             const tbody = document.getElementById('dailySavingsBody');
-            // Block tariff savings - use the month's block allocation to determine daily rate
+            // Block tariff savings for THIS DAY using monthly average block rate
             if (typeof calcBlockSavings === 'function') {
                 const ym = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0');
                 const md = dashData.monthly?.[ym] || {};
                 const mLoad = md['Consumption (kWh)'] || (rec.consumption || 0);
                 const mGI = md['Import (kWh)'] || (rec.import || 0);
-                const mExp = md['Export (kWh)'] || (rec.export || 0);
-                const bs = calcBlockSavings(mLoad, mGI, mExp);
-                // Render same as monthly
+                // Use monthly load to determine block rates, then apply to daily values
+                const mCost = calcBlockCost(mLoad);
+                const avgRate = mLoad > 0 ? mCost.cost / mLoad : BLOCK_TARIFF[1].rate;
+                // Daily actuals
+                const dayLoad = rec.consumption || 0;
+                const dayGI = rec.import || 0;
+                const dayExp = rec.export || 0;
+                const dayPV = rec.pv || 0;
+                const dayPVtoLoad = dayPV - dayExp; // PV that offset load
+                const dayPVSavings = dayPVtoLoad * avgRate;
+                const dayExpIncome = dayExp * avgRate;
+                const dayUtilityCost = dayGI * avgRate;
+                // Show per-block proportional breakdown (same proportions as monthly)
                 const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
                 let h = '', totPvS = 0, totUtil = 0, totGen = 0, totExpS = 0;
-                bs.blockSavings.forEach((b, i) => {
-                    const genKwh = (b.kwh||0) + (b.exportKwh||0);
-                    const utilCost = (bs.withSolar > 0 && mGI > 0) ? calcBlockCost(mGI).blocks[i].cost : 0;
-                    const expCost = b.exportCost || 0;
-                    totPvS += b.cost; totUtil += utilCost; totGen += genKwh; totExpS += expCost;
-                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(genKwh,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(b.cost)+'</td><td style="color:#38bdf8">R'+fmt(expCost)+'</td><td style="color:var(--green)">R'+fmt(b.cost + expCost)+'</td></tr>';
+                let prev = 0;
+                mCost.blocks.forEach((mb, i) => {
+                    const frac = mLoad > 0 ? mb.kwh / mLoad : 0;
+                    const genKwh = (dayPVtoLoad + dayExp) * frac;
+                    const pvSav = dayPVtoLoad * frac * mb.rate;
+                    const expSav = dayExp * frac * mb.rate;
+                    const utilCost = dayGI * frac * mb.rate;
+                    totPvS += pvSav; totUtil += utilCost; totGen += genKwh; totExpS += expSav;
+                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(genKwh,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(pvSav)+'</td><td style="color:#38bdf8">R'+fmt(expSav)+'</td><td style="color:var(--green)">R'+fmt(pvSav + expSav)+'</td></tr>';
+                    prev = BLOCK_TARIFF[i].limit;
                 });
-                if (mExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(mExp,1)+' kWh (included above)</td></tr>';
-                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(totGen)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(bs.total)+'</td></tr>';
+                if (dayExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh (included above)</td></tr>';
+                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmtDec(totGen,1)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
             }
@@ -4275,8 +4289,7 @@
 
             // Calculate block savings per month (same logic as lifetime tab)
             let blockPV = [0,0,0,0], blockExp = [0,0,0,0], grandTotal = 0;
-            const pvSavArr = [], expSavArr = [], cumArr = [], withoutArr = [], withArr = [];
-            let cum = 0;
+            const pvSavArr = [], expSavArr = [], withoutArr = [], withArr = [];
 
             finSortedMonths.forEach(ym => {
                 const md = monthly[ym]; if (!md) return;
@@ -4284,14 +4297,21 @@
                 const gi = md['Import (kWh)']||0;
                 const exp = md['Export (kWh)']||0;
                 const bs = calcBlockSavings(load, gi, exp);
-                grandTotal += bs.total;
                 bs.blockSavings.forEach((b,i) => { blockPV[i] += b.cost; blockExp[i] += (b.exportCost||0); });
                 pvSavArr.push(bs.pvSavings);
                 expSavArr.push(bs.exportIncome);
-                cum += bs.total; cumArr.push(cum);
                 withoutArr.push(bs.withoutSolar);
                 withArr.push(bs.withSolar);
             });
+
+            // Compute totals from block accumulation (matches lifetime tab exactly)
+            grandTotal = blockPV.reduce((a,b)=>a+b,0) + blockExp.reduce((a,b)=>a+b,0);
+            let cum = 0;
+            const cumArr = [];
+            for (let i = 0; i < pvSavArr.length; i++) {
+                cum += pvSavArr[i] + expSavArr[i];
+                cumArr.push(cum);
+            }
 
             // Fill slabs
             document.getElementById('fin-total-savings').textContent = fmt(grandTotal);
