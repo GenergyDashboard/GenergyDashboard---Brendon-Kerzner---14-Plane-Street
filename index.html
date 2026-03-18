@@ -1830,63 +1830,55 @@
             while (bd.length<4) bd.push({kwh:0,cost:0,rate:BLOCK_TARIFF[bd.length]?.rate||0,label:BLOCK_TARIFF[bd.length]?.label||''});
             return {cost, blocks:bd};
         }
-        function calcBlockSavings(load, gridImport, exportKwh) {
-            // Proportional approach: distribute PV gen and grid import across blocks
-            // based on how load fills each block. PV saves at the rate of the block it's in.
+        function calcBlockSavings(load, gridImport, exportKwh, pvSavingsKwh) {
+            // pvSavingsKwh = PV→Consumers + Battery→Consumers (what saves them money)
+            // gridImport = Grid→Consumers + Grid→Battery (what costs them money)
+            // exportKwh = PV→Grid + Battery→Grid (what they push back)
+            // If pvSavingsKwh not passed, derive it (backward compat)
+            const pvKwh = (pvSavingsKwh !== undefined) ? pvSavingsKwh : Math.max(0, load - gridImport);
             const loadBlocks = calcBlockCost(load);
             const gridBlocks = calcBlockCost(gridImport);
-            const pvGen = Math.max(0, load - gridImport); // PV that offset load (excl export)
 
-            // Distribute PV and grid proportionally across load blocks
+            // Distribute PV savings, grid cost, and export across blocks proportionally
             const blockSavings = [];
-            let totalPvSavings = 0;
+            let totalPvSavings = 0, totalExportIncome = 0;
             loadBlocks.blocks.forEach((lb, i) => {
                 if (load <= 0 || lb.kwh <= 0) {
                     blockSavings.push({kwh: 0, cost: 0, rate: lb.rate, label: lb.label,
-                        gridKwh: 0, gridCost: 0});
+                        gridKwh: 0, gridCost: 0, exportKwh: 0, exportCost: 0});
                     return;
                 }
-                const fraction = lb.kwh / load; // this block's share of total load
-                const pvInBlock = pvGen * fraction;
-                const gridInBlock = gridImport * fraction;
+                const fraction = lb.kwh / load;
+                // PV savings (PV→Cons + Batt→Cons) at this block's rate
+                const pvInBlock = pvKwh * fraction;
                 const pvSavInBlock = pvInBlock * lb.rate;
-                const gridCostInBlock = gridInBlock * lb.rate;
                 totalPvSavings += pvSavInBlock;
+                // Grid cost (Grid→Cons + Grid→Batt) at this block's rate
+                const gridInBlock = gridImport * fraction;
+                const gridCostInBlock = gridInBlock * lb.rate;
+                // Export at this block's rate
+                const expInBlock = exportKwh * fraction;
+                const expCostInBlock = expInBlock * lb.rate;
+                totalExportIncome += expCostInBlock;
+
                 blockSavings.push({
                     kwh: Math.round(pvInBlock * 10) / 10,
                     cost: Math.round(pvSavInBlock),
                     rate: lb.rate,
                     label: lb.label,
                     gridKwh: Math.round(gridInBlock * 10) / 10,
-                    gridCost: Math.round(gridCostInBlock)
+                    gridCost: Math.round(gridCostInBlock),
+                    exportKwh: Math.round(expInBlock * 10) / 10,
+                    exportCost: Math.round(expCostInBlock)
                 });
             });
-
-            // Export distributed across blocks proportionally (same as PV)
-            let totalExportIncome = 0;
-            loadBlocks.blocks.forEach((lb, i) => {
-                if (load <= 0 || lb.kwh <= 0) {
-                    blockSavings[i].exportKwh = 0;
-                    blockSavings[i].exportCost = 0;
-                    return;
-                }
-                const fraction = lb.kwh / load;
-                const expInBlock = exportKwh * fraction;
-                const expCostInBlock = expInBlock * lb.rate;
-                totalExportIncome += expCostInBlock;
-                blockSavings[i].exportKwh = Math.round(expInBlock * 10) / 10;
-                blockSavings[i].exportCost = Math.round(expCostInBlock);
-            });
-
-            const withoutSolar = loadBlocks.cost;
-            const withSolar = gridBlocks.cost;
 
             return {
                 total: Math.round(totalPvSavings) + Math.round(totalExportIncome),
                 pvSavings: Math.round(totalPvSavings),
                 exportIncome: Math.round(totalExportIncome),
-                withoutSolar: Math.round(withoutSolar),
-                withSolar: Math.round(withSolar),
+                withoutSolar: Math.round(loadBlocks.cost),
+                withSolar: Math.round(gridBlocks.cost),
                 blockSavings
             };
         }
@@ -2314,7 +2306,13 @@
                     pvToLoad = d.all_time_totals?.['Self-consumption (kWh)']||0;
                 }
                 if (typeof calcBlockSavings === 'function') {
-                    const bs = calcBlockSavings(load, gridImp, exp);
+                    const sc = pvToLoad || 0;  // PV→Consumers
+                    let battCons = 0;
+                    if (period==='today') battCons = d.today?.data?.['Battery to Load (kWh)']||0;
+                    else if (period==='current_month') battCons = d.current_month?.data?.['Battery to Load (kWh)']||0;
+                    else battCons = d.all_time_totals?.['Battery to Load (kWh)']||0;
+                    const pvSavKwh = sc + battCons;  // PV→Cons + Batt→Cons
+                    const bs = calcBlockSavings(load, gridImp, exp, pvSavKwh);
                     return { total: bs.total, pv_savings: {total: bs.pvSavings}, export_savings: {total: bs.exportIncome} };
                 }
                 return {};
@@ -2385,10 +2383,10 @@
                 perfEl.className = 'perf-value ' + (perf >= CC.thresh_pv_good ? 'perf-good' : perf >= CC.thresh_pv_neutral ? 'perf-neutral' : 'perf-bad');
             } else { perfEl.textContent = '--%'; perfEl.className = 'perf-value perf-neutral'; }
 
-            // PV Coverage % (% of load covered by PV + Battery)
+            // PV Coverage % (PV to Load / Load)
             const covEl = document.getElementById('ov-' + id + '-cov');
             if (consumption > 0) {
-                const cov = ((toLoad + (battToLoad || 0)) / consumption) * 100;
+                const cov = (toLoad / consumption) * 100;
                 covEl.textContent = cov.toFixed(1) + '%';
                 covEl.className = 'perf-value ' + (cov >= CC.thresh_cov_good ? 'perf-good' : cov >= CC.thresh_cov_neutral ? 'perf-neutral' : 'perf-bad');
             } else { covEl.textContent = '--%'; covEl.className = 'perf-value perf-neutral'; }
@@ -3317,8 +3315,7 @@
             const actExp = rec.export || 0;
 
             // PV Coverage
-            const actBattCons = rec.batt_to_cons || 0;
-            const actCov = actLoad > 0 ? ((actSC + actBattCons) / actLoad * 100) : 0;
+            const actCov = actLoad > 0 ? (actSC / actLoad * 100) : 0;
             const expSC = expPV * CC.daily_exp_sc_fraction;
             const expCov = expLoad > 0 ? (expSC / expLoad * 100) : 0;
             const covOfExp = expCov > 0 ? (actCov / expCov * 100) : 0;
@@ -3379,39 +3376,64 @@
 
         function renderDailySavingsTable(rec, dateObj) {
             const tbody = document.getElementById('dailySavingsBody');
-            // Block tariff savings for THIS DAY using monthly average block rate
+            // Block tariff savings for THIS DAY
+            // Determine which block(s) this day falls into based on cumulative MTD consumption
             if (typeof calcBlockSavings === 'function') {
                 const ym = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0');
-                const md = dashData.monthly?.[ym] || {};
-                const mLoad = md['Consumption (kWh)'] || (rec.consumption || 0);
-                const mGI = md['Import (kWh)'] || (rec.import || 0);
-                // Use monthly load to determine block rates, then apply to daily values
-                const mCost = calcBlockCost(mLoad);
-                const avgRate = mLoad > 0 ? mCost.cost / mLoad : BLOCK_TARIFF[1].rate;
-                // Daily actuals
+                const dayNum = dateObj.getDate();
+                const mm = String(dateObj.getMonth()+1).padStart(2,'0');
+                // Sum load from day 1 to day before this one = cumulative prior load
+                let priorLoad = 0;
+                for (let d = 1; d < dayNum; d++) {
+                    const ds = dateObj.getFullYear()+'-'+mm+'-'+String(d).padStart(2,'0');
+                    const dh = dailyHist?.[ds];
+                    if (dh) priorLoad += (dh.consumption || 0);
+                }
+                // Today's values
                 const dayLoad = rec.consumption || 0;
                 const dayGI = rec.import || 0;
                 const dayExp = rec.export || 0;
+                const daySC = rec.self_consumption || 0; // PV to consumers
+                const dayBattCons = rec.batt_to_cons || 0; // Battery to consumers
+                const dayPVsav = daySC + dayBattCons; // Total that saved them from grid
                 const dayPV = rec.pv || 0;
-                const dayPVtoLoad = dayPV - dayExp; // PV that offset load
-                const dayPVSavings = dayPVtoLoad * avgRate;
-                const dayExpIncome = dayExp * avgRate;
-                const dayUtilityCost = dayGI * avgRate;
-                // Show per-block proportional breakdown (same proportions as monthly)
+                // Determine which block(s) this day's consumption falls into
+                // priorLoad tells us where in the blocks we start
                 const blkLabels = ['<span class="tou-pill off-peak">Block 1 (0–50)</span>','<span class="tou-pill standard">Block 2 (51–350)</span>','<span class="tou-pill peak">Block 3 (351–600)</span>','<span class="tou-pill peak" style="background:rgba(239,68,68,0.3)">Block 4 (600+)</span>'];
                 let h = '', totPvS = 0, totUtil = 0, totGen = 0, totExpS = 0;
+                let remLoad = dayLoad, remGI = dayGI, remSC = daySC, remExp = dayExp;
+                let cumPos = priorLoad; // where we start in the block structure
                 let prev = 0;
-                mCost.blocks.forEach((mb, i) => {
-                    const frac = mLoad > 0 ? mb.kwh / mLoad : 0;
-                    const genKwh = (dayPVtoLoad + dayExp) * frac;
-                    const pvSav = dayPVtoLoad * frac * mb.rate;
-                    const expSav = dayExp * frac * mb.rate;
-                    const utilCost = dayGI * frac * mb.rate;
-                    totPvS += pvSav; totUtil += utilCost; totGen += genKwh; totExpS += expSav;
-                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(genKwh,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(pvSav)+'</td><td style="color:#38bdf8">R'+fmt(expSav)+'</td><td style="color:var(--green)">R'+fmt(pvSav + expSav)+'</td></tr>';
-                    prev = BLOCK_TARIFF[i].limit;
-                });
-                if (dayExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh (included above)</td></tr>';
+                for (let i = 0; i < BLOCK_TARIFF.length; i++) {
+                    const bLimit = BLOCK_TARIFF[i].limit;
+                    const bRate = BLOCK_TARIFF[i].rate;
+                    const bStart = prev;
+                    // How much room is left in this block?
+                    const roomInBlock = Math.max(0, bLimit - Math.max(cumPos, bStart));
+                    if (roomInBlock <= 0 || remLoad <= 0) {
+                        // Day doesn't reach this block, or no consumption left
+                        h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>0 kWh</td><td>R0</td><td style="color:var(--green)">R0</td><td style="color:#38bdf8">R0</td><td style="color:var(--green)">R0</td></tr>';
+                        prev = bLimit;
+                        continue;
+                    }
+                    // How much of today's load falls in this block
+                    const loadInBlock = Math.min(remLoad, roomInBlock);
+                    // Distribute GI, SC, Export proportionally to their share of today's load
+                    const frac = dayLoad > 0 ? loadInBlock / dayLoad : 0;
+                    const giInBlock = dayGI * frac;
+                    const scInBlock = dayPVsav * frac; // PV→Cons + Batt→Cons
+                    const expInBlock = dayExp * frac;
+                    const genInBlock = (dayPVsav + dayExp) * frac;
+                    const utilCost = giInBlock * bRate;
+                    const pvSav = scInBlock * bRate;
+                    const expSav = expInBlock * bRate;
+                    totUtil += utilCost; totPvS += pvSav; totExpS += expSav; totGen += genInBlock;
+                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(genInBlock,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(pvSav)+'</td><td style="color:#38bdf8">R'+fmt(expSav)+'</td><td style="color:var(--green)">R'+fmt(pvSav + expSav)+'</td></tr>';
+                    remLoad -= loadInBlock;
+                    cumPos += loadInBlock;
+                    prev = bLimit;
+                }
+                if (dayExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh</td></tr>';
                 h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmtDec(totGen,1)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
@@ -3668,7 +3690,8 @@
             const md = dashData.monthly?.[ym] || {};
             const load = md['Consumption (kWh)'] || 0;
             const imp = gridImport || md['Import (kWh)'] || 0;
-            const bs = calcBlockSavings(load, imp, exp);
+            const pvSavKwh = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
+            const bs = calcBlockSavings(load, imp, exp, pvSavKwh);
             // Return in format compatible with rendering functions
             return {
                 pv_savings: {total: bs.pvSavings, block1: bs.blockSavings[0]?.cost||0, block2: bs.blockSavings[1]?.cost||0, block3: bs.blockSavings[2]?.cost||0, block4: bs.blockSavings[3]?.cost||0},
@@ -3725,8 +3748,7 @@
             try { document.getElementById('ml-pv-tobatt').textContent = fmt(actPvToBatt) + ' kWh'; } catch(e) {}
 
             // PV Coverage
-            const actBattToLoad = md['Battery to Load (kWh)'] || 0;
-            const actCov = actLoad > 0 ? ((actSC + actBattToLoad) / actLoad * 100) : 0;
+            const actCov = actLoad > 0 ? (actSC / actLoad * 100) : 0;
             const expCov = expLoad > 0 ? (expPV / expLoad * 100) : 0;
             const covOfExp = expCov > 0 ? (actCov / expCov * 100) : 0;
             document.getElementById('ml-cov').textContent = actCov.toFixed(1);
@@ -4059,8 +4081,9 @@
             sortedMonths.forEach(ym => {
                 const md = monthly[ym]; if(!md) return;
                 const load = md['Consumption (kWh)']||0, gi = md['Import (kWh)']||0, exp = md['Export (kWh)']||0;
+                const pvSavKwh = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
                 if (typeof calcBlockSavings === 'function') {
-                    const bs = calcBlockSavings(load, gi, exp);
+                    const bs = calcBlockSavings(load, gi, exp, pvSavKwh);
                     bs.blockSavings.forEach((b,i) => { ltBT[i] += b.cost; ltGen[i] += b.kwh; ltExpPerBlock[i] += (b.exportCost||0); });
                     ltExpTotal += bs.exportIncome;
                     ltExpKwh += exp;
@@ -4211,8 +4234,9 @@
                 labels.push(monthNames[mm] + ' ' + String(yr).slice(2));
 
                 // Actual savings via block tariff
+                const pvSavKwh2 = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
                 if (typeof calcBlockSavings === 'function' && load > 0) {
-                    actSavArr.push(Math.round(calcBlockSavings(load, gi, exp).total));
+                    actSavArr.push(Math.round(calcBlockSavings(load, gi, exp, pvSavKwh2).total));
                 } else { actSavArr.push(0); }
 
                 // Predicted savings: PVSyst expected × average block rate for that load level
@@ -4292,7 +4316,8 @@
                 const load = md['Consumption (kWh)']||0;
                 const gi = md['Import (kWh)']||0;
                 const exp = md['Export (kWh)']||0;
-                const bs = calcBlockSavings(load, gi, exp);
+                const pvSavKwh = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
+                const bs = calcBlockSavings(load, gi, exp, pvSavKwh);
                 bs.blockSavings.forEach((b,i) => { blockPV[i] += b.cost; blockExp[i] += (b.exportCost||0); });
                 pvSavArr.push(bs.pvSavings);
                 expSavArr.push(bs.exportIncome);
