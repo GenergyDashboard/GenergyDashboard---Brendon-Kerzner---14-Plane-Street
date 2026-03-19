@@ -3406,9 +3406,22 @@
 
         function renderDailyTab(dateStr, rec) {
             const statusEl = document.getElementById('dailyStatus');
-            const partialHour = rec.current_hour;
-            const isPartial = partialHour < 23;
-            statusEl.textContent = isPartial ? `Data to ${String(partialHour).padStart(2,'0')}:00` : 'Full day';
+            // Determine the last hour with actual data (not just current_hour)
+            let lastDataHour = rec.current_hour;
+            if (lastDataHour === undefined || lastDataHour === null) {
+                // Find the last hour with any PV or load data
+                const pvArr = rec.hourly?.pv || [];
+                const loadArr = rec.hourly?.load || [];
+                lastDataHour = 23;
+                for (let h = 23; h >= 0; h--) {
+                    if ((pvArr[h] || 0) > 0 || (loadArr[h] || 0) > 0) {
+                        lastDataHour = h;
+                        break;
+                    }
+                }
+            }
+            const isPartial = lastDataHour < 23;
+            statusEl.textContent = isPartial ? `Data to ${String(lastDataHour).padStart(2,'0')}:00` : 'Full day';
 
             // Parse date for PVSyst
             const dp = new Date(dateStr + 'T12:00:00');
@@ -3423,7 +3436,7 @@
 
             // Expected PV: sum monthly hourly avg to current hour (matches overview)
             let expPV = 0;
-            const maxH = isPartial ? partialHour : 23;
+            const maxH = isPartial ? lastDataHour : 23;
             for (let h = 0; h <= maxH; h++) expPV += monthlyAvg[h] || 0;
 
             // Expected load & grid from monthly averages
