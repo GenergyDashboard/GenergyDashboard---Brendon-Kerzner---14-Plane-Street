@@ -3575,7 +3575,7 @@
                     prev = bLimit;
                 }
                 if (dayExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh</td></tr>';
-                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmtDec(totGen,1)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
+                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmtDec(dayPV,1)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
             }
@@ -3978,7 +3978,8 @@
                 totPvS += b.cost; totUtil += utilCost; totGen += genKwh; totExpS += expCost; totExpKwh += (b.exportKwh||0);
                 h += `<tr><td style="text-align:left">${labels[i]}</td><td>${fmtDec(genKwh,1)} kWh</td><td>R${fmt(utilCost)}</td><td style="color:var(--green);">R${fmt(b.cost)}</td><td style="color:#38bdf8;">R${fmt(expCost)}</td><td style="color:var(--green);">R${fmt(b.cost + expCost)}</td></tr>`;
             });
-            h += `<tr class="total-row"><td style="text-align:left">Total</td><td>${fmt(totGen)} kWh</td><td>R${fmt(totUtil)}</td><td style="color:var(--green);">R${fmt(totPvS)}</td><td style="color:#38bdf8;">R${fmt(totExpS)}</td><td style="color:var(--green);font-weight:700;">R${fmt(sav.total)}</td></tr>`;
+            const mPVYield = md['PV Yield (kWh)'] || totGen;
+            h += `<tr class="total-row"><td style="text-align:left">Total</td><td>${fmt(mPVYield)} kWh</td><td>R${fmt(totUtil)}</td><td style="color:var(--green);">R${fmt(totPvS)}</td><td style="color:#38bdf8;">R${fmt(totExpS)}</td><td style="color:var(--green);font-weight:700;">R${fmt(sav.total)}</td></tr>`;
             if (mExp > 0) h += `<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:8px;">Export to grid: ${fmtDec(mExp,1)} kWh (included in generation above)</td></tr>`;
             tbody.innerHTML = h;
         }
@@ -4043,20 +4044,15 @@
             const irradScale = maxPV / maxIrrad;
 
             const avgActPVLine = [], avgExpPVLine = [];
-            // Build chart arrays with running averages for load/grid
-            let runLoadSum = 0, runGridSum = 0, runDaysWithData = 0;
+            // Build chart arrays - load/grid as flat MTD average lines
+            const flatAvgLoad = numDays > 0 ? Math.round(totalActLoad / numDays) : 0;
+            const flatAvgGrid = numDays > 0 ? Math.round(totalActGrid / numDays) : 0;
             dailyData.forEach((dd, idx) => {
                 labels.push(String(dd.d).padStart(2,'0') + ' ' + monthNames[mo]);
                 actGen.push(Math.round(dd.dayActPV));
                 irradScaled.push(Math.round(dd.irradDaily * irradScale));
-                // Running average for load and grid
-                if (dd.dayActLoad > 0 || dd.dayActGrid > 0) {
-                    runDaysWithData++;
-                    runLoadSum += dd.dayActLoad;
-                    runGridSum += dd.dayActGrid;
-                }
-                actLoadArr.push(runDaysWithData > 0 ? Math.round(runLoadSum / runDaysWithData) : null);
-                actGridArr.push(runDaysWithData > 0 ? Math.round(runGridSum / runDaysWithData) : null);
+                actLoadArr.push(flatAvgLoad);
+                actGridArr.push(flatAvgGrid);
                 avgActPVLine.push(Math.round(avgActPV));
                 avgExpPVLine.push(Math.round(avgExpPV));
             });
