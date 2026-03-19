@@ -3823,13 +3823,18 @@
         function calcMonthExpFor(year, month, upToDay, upToHour) {
             if (!pvsyst) return 0;
             const factor = degradationFactor(year);
-            const mm = String(month).padStart(2,'0');
+            const mm = String(month).padStart(2, '0');
+            // Determine start day (respect system start date)
+            const isStartMonth = (year === CC.system_start_year && month === CC.system_start_month);
+            const startDay = isStartMonth ? 21 : 1;  // System started Jan 21
+            const startHour = isStartMonth ? 11 : 0;  // System started at 11:00
             let total = 0;
-            for (let d = 1; d <= upToDay; d++) {
-                const mmdd = mm + '-' + String(d).padStart(2,'0');
+            for (let d = startDay; d <= upToDay; d++) {
+                const mmdd = mm + '-' + String(d).padStart(2, '0');
                 const hourly = getPvsystDay(mmdd);
-                if (d < upToDay) { total += hourly.reduce((a,b) => a+b, 0); }
-                else { for (let h = 0; h <= upToHour; h++) total += hourly[h] || 0; }
+                const hStart = (d === startDay && startHour > 0) ? startHour : 0;
+                const hEnd = (d === upToDay) ? Math.min(upToHour, 23) : 23;
+                for (let h = hStart; h <= hEnd; h++) total += hourly[h] || 0;
             }
             return total * factor;
         }
@@ -5828,10 +5833,16 @@
                 dR.push(row(cel(d,dC[0],{fill:fl,sz:15}),cel(ds,dC[1],{fill:fl,sz:15}),cel(fN(dA),dC[2],{fill:fl,sz:15}),cel(fN(dayExp),dC[3],{fill:fl,sz:15}),cel(fN(dSC),dC[4],{fill:fl,sz:15}),cel(fN(dEx),dC[5],{fill:fl,sz:15}),cel(fN(dGI),dC[6],{fill:fl,sz:15}),cel(fN(dL),dC[7],{fill:fl,sz:15}),cel(dp.toFixed(1)+'%',dC[8],{fill:fl,bold:true,sz:15,color:dp>=95?GREEN:dp>=80?'CA8A04':'DC2626'})));
             }
             children.push(tbl(dC,dR));
-            children.push(sp(80));
+            children.push(new D.Paragraph({children:[new D.PageBreak()]}));
             // Monthly chart
             children.push(h2('Daily Generation & Performance'));
             children.push(img(mCaps.chart, 700, 320));
+            children.push(new D.Paragraph({spacing:{before:40},children:[
+                new D.TextRun({text:'■ ',font:'Segoe UI',size:16,color:'4ADE80'}),new D.TextRun({text:'PV Gen   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'— ',font:'Segoe UI',size:16,color:'EF4444'}),new D.TextRun({text:'Avg Load   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'— ',font:'Segoe UI',size:16,color:'F97316'}),new D.TextRun({text:'Avg Grid   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'--- ',font:'Segoe UI',size:16,color:'60A5FA'}),new D.TextRun({text:'Predicted PV',font:'Segoe UI',size:14,color:GRAY})
+            ]}));
             children.push(new D.Paragraph({children:[new D.PageBreak()]}));
 
             // ════ LIFETIME ════
@@ -5840,10 +5851,21 @@
             // Yearly table
             const yearMap={};
             allM.forEach(m=>{const[yy]=m.split('-').map(Number);if(!yearMap[yy])yearMap[yy]={a:0,e:0};yearMap[yy].a+=dashData.monthly[m]['PV Yield (kWh)']||0;});
+            // Calculate expected per year using calcLifetimeExpected logic (respects system start)
             Object.keys(yearMap).forEach(yy=>{const y=parseInt(yy),f2=degradationFactor(y);
-                if(y===CC.system_start_year){const mt=pvsyst?.monthly_totals_kwh||{};let e=0;for(let m=CC.system_start_month;m<=12;m++)e+=(mt[String(m)]||0)*f2;yearMap[yy].e=e;}
-                else if(y===now.getFullYear()){let e=0;for(let m3=1;m3<=now.getMonth()+1;m3++){const k=y+'-'+String(m3).padStart(2,'0');if(dashData.monthly[k]){const ic=m3===now.getMonth()+1;e+=calcMonthExpFor(y,m3,ic?now.getDate():new Date(y,m3,0).getDate(),ic?curH:23);}}yearMap[yy].e=e;}
-                else{yearMap[yy].e=(pvsyst?.annual_total_kwh||0)*f2;}});
+                let e=0;
+                // For each month we have data, calculate expected
+                allM.forEach(m2=>{
+                    const[my,mm2]=m2.split('-').map(Number);
+                    if(my!==y) return;
+                    const ic=my===now.getFullYear()&&mm2===(now.getMonth()+1);
+                    const nd=ic?now.getDate():new Date(my,mm2,0).getDate();
+                    const ch=ic?curH:23;
+                    // For start month, calcMonthExpFor handles partial month
+                    e+=calcMonthExpFor(my,mm2,nd,ch);
+                });
+                yearMap[yy].e=e;
+            });
             const yC=[TW*0.2,TW*0.2,TW*0.2,TW*0.2,TW*0.2].map(Math.floor);
             const yR=[row(hdr('Year',yC[0]),hdr('Generated',yC[1]),hdr('Expected',yC[2]),hdr('Variance',yC[3]),hdr('Performance',yC[4]))];
             let yA=0,yE=0;
@@ -5855,6 +5877,11 @@
             children.push(sp(80));
             children.push(h2('Monthly Generation Breakdown'));
             children.push(img(lCaps.genChart, 700, 320));
+            children.push(new D.Paragraph({spacing:{before:40},children:[
+                new D.TextRun({text:'■ ',font:'Segoe UI',size:16,color:'4ADE80'}),new D.TextRun({text:'Actual PV   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'--- ',font:'Segoe UI',size:16,color:'60A5FA'}),new D.TextRun({text:'Expected PV   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'— ',font:'Segoe UI',size:16,color:'EF4444'}),new D.TextRun({text:'Load',font:'Segoe UI',size:14,color:GRAY})
+            ]}));
             children.push(sp(60));
             children.push(sp(120));
 
@@ -5870,15 +5897,24 @@
                     const fl=i%2===0?undefined:LIGHT;
                     fRows.push(row(cel(blkNames[i],fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:fl}),cel(fN(genKwh)+' kWh',fC[1],{fill:fl}),cel('R'+fN(b.gridCost||0),fC[2],{fill:fl}),cel('R'+fN(b.cost),fC[3],{fill:fl,color:GREEN}),cel('R'+fN(b.exportCost||0),fC[4],{fill:fl,color:'2563EB'}),cel('R'+fN(b.cost+(b.exportCost||0)),fC[5],{fill:fl,bold:true,color:GREEN})));
                 });
-                fRows.push(row(cel('Total',fC[0],{bold:true,fill:DARK,color:WHITE}),cel('',fC[1],{fill:DARK,color:WHITE,bold:true}),cel('',fC[2],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(pvSav),fC[3],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(expSav),fC[4],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(totalSav),fC[5],{fill:DARK,color:'FFD700',bold:true})));
+                fRows.push(row(cel('Total',fC[0],{bold:true,fill:DARK,color:WHITE}),cel(fN(actPV)+' kWh',fC[1],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(utilityCost),fC[2],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(pvSav),fC[3],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(expSav),fC[4],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(totalSav),fC[5],{fill:DARK,color:'FFD700',bold:true})));
                 children.push(tbl(fC,fRows));
             }
             children.push(sp(80));
             children.push(h2('Savings Over Time'));
             children.push(img(fCaps.savChart, 700, 320));
+            children.push(new D.Paragraph({spacing:{before:40},children:[
+                new D.TextRun({text:'■ ',font:'Segoe UI',size:16,color:'4ADE80'}),new D.TextRun({text:'PV Savings   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'■ ',font:'Segoe UI',size:16,color:'38BDF8'}),new D.TextRun({text:'Export Income   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'— ',font:'Segoe UI',size:16,color:'FFD700'}),new D.TextRun({text:'Cumulative',font:'Segoe UI',size:14,color:GRAY})
+            ]}));
             children.push(sp(60));
             children.push(h2('Monthly Cost: With vs Without Solar'));
             children.push(img(fCaps.genChart, 700, 320));
+            children.push(new D.Paragraph({spacing:{before:40},children:[
+                new D.TextRun({text:'■ ',font:'Segoe UI',size:16,color:'EF4444'}),new D.TextRun({text:'Without Solar   ',font:'Segoe UI',size:14,color:GRAY}),
+                new D.TextRun({text:'■ ',font:'Segoe UI',size:16,color:'4ADE80'}),new D.TextRun({text:'With Solar',font:'Segoe UI',size:14,color:GRAY})
+            ]}));
             children.push(sp(120));
 
             // ════ WARRANTIES ════
