@@ -3992,7 +3992,7 @@
                 const dateStr = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
                 let dh = dailyHist?.[dateStr];
                 // Fallback: use dashData.today for the today date
-                if (!dh && dateStr === todayDate) {
+                if (!dh && dateStr === (dashData?.today?.date || '')) {
                     const td = dashData.today?.data || {};
                     dh = {
                         pv: td['PV Yield (kWh)']||0,
