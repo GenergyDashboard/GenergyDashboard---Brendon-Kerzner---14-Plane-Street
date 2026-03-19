@@ -3406,19 +3406,18 @@
 
         function renderDailyTab(dateStr, rec) {
             const statusEl = document.getElementById('dailyStatus');
-            // Determine the last hour with actual data (not just current_hour)
-            let lastDataHour = rec.current_hour;
-            if (lastDataHour === undefined || lastDataHour === null) {
-                // Find the last hour with any PV or load data
-                const pvArr = rec.hourly?.pv || [];
-                const loadArr = rec.hourly?.load || [];
+            const todayDate = dashData?.today?.date || '';
+            const pipelineHour = dashData?.hourly?.current_hour;
+            let lastDataHour;
+            
+            if (dateStr === todayDate && pipelineHour !== undefined && pipelineHour !== null) {
+                // Today's date: use pipeline's current_hour (when scraper last ran)
+                lastDataHour = pipelineHour;
+            } else if (rec.current_hour !== undefined && rec.current_hour !== null) {
+                lastDataHour = rec.current_hour;
+            } else {
+                // Historical day: assume full day
                 lastDataHour = 23;
-                for (let h = 23; h >= 0; h--) {
-                    if ((pvArr[h] || 0) > 0 || (loadArr[h] || 0) > 0) {
-                        lastDataHour = h;
-                        break;
-                    }
-                }
             }
             const isPartial = lastDataHour < 23;
             statusEl.textContent = isPartial ? `Data to ${String(lastDataHour).padStart(2,'0')}:00` : 'Full day';
