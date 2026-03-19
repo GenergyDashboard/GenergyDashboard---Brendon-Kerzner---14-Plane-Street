@@ -2420,16 +2420,34 @@
                     pvToLoad = d.all_time_totals?.['Self-consumption (kWh)']||0;
                 }
                 if (typeof calcBlockSavings === 'function') {
-                    const sc = pvToLoad || 0;  // PV→Consumers
+                    const sc = pvToLoad || 0;
                     let battCons = 0;
                     if (period==='today') battCons = d.today?.data?.['Battery to Load (kWh)']||0;
                     else if (period==='current_month') battCons = d.current_month?.data?.['Battery to Load (kWh)']||0;
                     else battCons = d.all_time_totals?.['Battery to Load (kWh)']||0;
-                    const pvSavKwh = sc + battCons;  // PV→Cons + Batt→Cons
+                    const pvSavKwh = sc + battCons;
                     let pvGenT = 0;
                     if (period==='today') pvGenT = d.today?.data?.['PV Yield (kWh)']||0;
                     else if (period==='current_month') pvGenT = d.current_month?.data?.['PV Yield (kWh)']||0;
                     else pvGenT = d.all_time_totals?.['PV Yield (kWh)']||0;
+
+                    if (period === 'today') {
+                        // For today: determine block rate from cumulative monthly position
+                        // Monthly load minus today = prior days' cumulative load
+                        const mLoad = d.current_month?.data?.['Consumption (kWh)'] || load;
+                        const priorLoad = Math.max(0, mLoad - load);
+                        // Find which block today's load falls into
+                        let todayRate = BLOCK_TARIFF[0].rate;
+                        let prev = 0;
+                        for (const bt of BLOCK_TARIFF) {
+                            if (priorLoad >= prev) todayRate = bt.rate;
+                            prev = bt.limit;
+                        }
+                        const pvSav = Math.round(pvSavKwh * todayRate);
+                        const expInc = Math.round(exp * todayRate);
+                        return { total: pvSav + expInc, pv_savings: {total: pvSav}, export_savings: {total: expInc} };
+                    }
+
                     const bs = calcBlockSavings(load, gridImp, exp, pvSavKwh, pvGenT);
                     return { total: bs.total, pv_savings: {total: bs.pvSavings}, export_savings: {total: bs.exportIncome} };
                 }
