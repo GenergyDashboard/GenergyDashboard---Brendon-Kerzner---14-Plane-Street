@@ -1232,7 +1232,6 @@
                             <thead>
                                 <tr>
                                     <th>Block</th>
-                                    <th>Generation</th>
                                     <th>Utility Cost</th>
                                     <th>PV Savings</th>
                                     <th>Export Savings</th>
@@ -4371,9 +4370,9 @@
             ltBT.forEach((cost,i) => {
                 const expCost = ltExpArr[i] || 0;
                 ltPvTotal += cost; ltUtilTotal += ltUtil[i]; ltGenTotal += ltGen[i];
-                html += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmt(ltGen[i])+' kWh</td><td>R'+fmt(ltUtil[i])+'</td><td style="color:var(--green)">R'+fmt(cost)+'</td><td style="color:#38bdf8">R'+fmt(ltExpPerBlock[i]||0)+'</td><td style="color:var(--green)">R'+fmt(cost + (ltExpPerBlock[i]||0))+'</td></tr>';
+                html += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>R'+fmt(ltUtil[i])+'</td><td style="color:var(--green)">R'+fmt(cost)+'</td><td style="color:#38bdf8">R'+fmt(ltExpPerBlock[i]||0)+'</td><td style="color:var(--green)">R'+fmt(cost + (ltExpPerBlock[i]||0))+'</td></tr>';
             });
-            html += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(ltGenTotal)+' kWh</td><td>R'+fmt(ltUtilTotal)+'</td><td style="color:var(--green)">R'+fmt(ltPvTotal)+'</td><td style="color:#38bdf8">R'+fmt(ltExpTotal)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(ltPvTotal+ltExpTotal)+'</td></tr>';
+            html += '<tr class="total-row"><td style="text-align:left">Total</td><td>R'+fmt(ltUtilTotal)+'</td><td style="color:var(--green)">R'+fmt(ltPvTotal)+'</td><td style="color:#38bdf8">R'+fmt(ltExpTotal)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(ltPvTotal+ltExpTotal)+'</td></tr>';
             tbody.innerHTML = html;
         }
 
