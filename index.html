@@ -5575,28 +5575,9 @@
         async function captureChartCanvas(canvasId) {
             const canvas = document.getElementById(canvasId);
             if (!canvas || !canvas.getContext) return null;
-            // Find the Chart.js instance and enable legend temporarily
-            const chartInstance = Chart.getChart(canvas);
-            let legendWasHidden = false;
-            if (chartInstance && chartInstance.options.plugins.legend) {
-                legendWasHidden = chartInstance.options.plugins.legend.display === false;
-                if (legendWasHidden) {
-                    chartInstance.options.plugins.legend.display = true;
-                    chartInstance.options.plugins.legend.labels = Object.assign(
-                        chartInstance.options.plugins.legend.labels || {},
-                        { color: '#333', font: { size: 12, weight: 'bold' }, padding: 15 }
-                    );
-                    chartInstance.update('none');
-                    await new Promise(r => setTimeout(r, 200));
-                }
-            }
+            // Just capture the canvas as-is (legend is rendered via HTML, not on canvas)
             return new Promise(r => {
                 canvas.toBlob(b => {
-                    // Restore legend state
-                    if (chartInstance && legendWasHidden) {
-                        chartInstance.options.plugins.legend.display = false;
-                        chartInstance.update('none');
-                    }
                     if (!b) { r(null); return; }
                     b.arrayBuffer().then(ab => r(new Uint8Array(ab)));
                 }, 'image/png');
