@@ -3679,7 +3679,63 @@
                 <td>R${fmt(sav.total || 0)}</td></tr>`;
         }
 
-        function renderDailyHourlyChart(rec, dateStr, maxH, monthlyAvg) {
+
+        // ══════════════════════════════════════════════════
+        // IRRADIATION ON-DEMAND FETCH (for any date)
+        // ══════════════════════════════════════════════════
+        const irradCache = {};
+        async function getIrradForDate(dateStr) {
+            // Check cache first
+            if (irradCache[dateStr]) return irradCache[dateStr];
+            // Check if already in irradData
+            if (irradData?.daily_records?.[dateStr]?.hourly_wm2) {
+                const raw = irradData.daily_records[dateStr].hourly_wm2;
+                const arr = new Array(24).fill(0);
+                for (let i = 0; i < 23; i++) arr[i] = raw[i+1] || 0;
+                irradCache[dateStr] = arr;
+                return arr;
+            }
+            if (irradData?.hourly?.time) {
+                const arr = new Array(24).fill(0);
+                let found = false;
+                irradData.hourly.time.forEach((t, i) => {
+                    if (t.startsWith(dateStr)) {
+                        found = true;
+                        const utcH = parseInt(t.slice(11, 13));
+                        const sastH = (utcH + 2) % 24;
+                        arr[sastH] = irradData.hourly.direct_radiation[i] || 0;
+                    }
+                });
+                if (found) { irradCache[dateStr] = arr; return arr; }
+            }
+            // Fetch from Open-Meteo archive API
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                let url;
+                if (dateStr >= today) {
+                    url = 'https://api.open-meteo.com/v1/forecast?latitude=-34.027&longitude=24.931&hourly=direct_radiation&start_date='+dateStr+'&end_date='+dateStr;
+                } else {
+                    url = 'https://archive-api.open-meteo.com/v1/archive?latitude=-34.027&longitude=24.931&hourly=direct_radiation&start_date='+dateStr+'&end_date='+dateStr;
+                }
+                const r = await fetch(url);
+                if (r.ok) {
+                    const data = await r.json();
+                    const arr = new Array(24).fill(0);
+                    if (data.hourly?.time) {
+                        data.hourly.time.forEach((t, i) => {
+                            const utcH = parseInt(t.slice(11, 13));
+                            const sastH = (utcH + 2) % 24;
+                            arr[sastH] = data.hourly.direct_radiation[i] || 0;
+                        });
+                    }
+                    irradCache[dateStr] = arr;
+                    return arr;
+                }
+            } catch(e) { console.warn('Irrad fetch failed for', dateStr, e); }
+            return new Array(24).fill(0);
+        }
+
+        async function renderDailyHourlyChart(rec, dateStr, maxH, monthlyAvg) {
             const ctx = document.getElementById('dailyHourlyChart');
             if (!ctx) return;
 
@@ -3717,22 +3773,8 @@
                 gridH = avgG.map(v => impTotal * (v / gTotal));
             }
 
-            // Irradiation: support both file format and API format
-            let irradH = new Array(24).fill(0);
-            if (irradData?.daily_records?.[dateStr]?.hourly_wm2) {
-                const irradRaw = irradData.daily_records[dateStr].hourly_wm2;
-                for (let i = 0; i < 23; i++) irradH[i] = irradRaw[i + 1] || 0;
-            } else if (irradData?.hourly?.time && irradData?.hourly?.direct_radiation) {
-                const times = irradData.hourly.time;
-                const vals = irradData.hourly.direct_radiation;
-                times.forEach((t, i) => {
-                    if (t.startsWith(dateStr)) {
-                        const utcH = parseInt(t.slice(11, 13));
-                        const sastH = (utcH + 2) % 24;
-                        irradH[sastH] = vals[i] || 0;
-                    }
-                });
-            }
+            // Fetch irradiation for this date (cached + on-demand)
+            const irradH = await getIrradForDate(dateStr);
 
             const expLoadLine = dashData.hourly?.avg_load || new Array(24).fill(0);
             const expGridLine = dashData.hourly?.avg_grid || new Array(24).fill(0);
