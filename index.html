@@ -4810,14 +4810,14 @@
                     });
                 }
 
-                // Determine which block this hour falls in (based on avg monthly rate)
-                // Find the block name for the monthly load level
-                let blockLabel = 'Block 1';
+                // Determine block rate based on monthly load level
+                let blockRate = BLOCK_TARIFF[0].rate;
                 let prev2 = 0;
                 for (const bt of BLOCK_TARIFF) {
-                    if (mLoad > prev2) { blockLabel = bt.label.split('(')[0].trim(); }
+                    if (mLoad > prev2) { blockRate = bt.rate; }
                     prev2 = bt.limit;
                 }
+                const blockLabel = 'R' + blockRate.toFixed(2) + '/kWh';
 
                 for (let h = 0; h <= maxHour; h++) {
                     const actGenH = pvH[h] || 0;
@@ -4833,24 +4833,27 @@
                     const battGridHv = battGridH[h] || 0;
                     const irradH = irradDay[h] || 0;
 
-                    // Savings: only when there's actual PV/export
+                    // Savings at block rate
                     const utilCostH = actGridH * avgBlockRate;
-                    const pvSavH = pvConsHv * avgBlockRate;  // Only PV→Load savings
-                    const battSavH = battConsH * avgBlockRate;  // Battery→Load savings
-                    const expSavH = expHv * avgBlockRate;
+                    const pvSavH = pvConsHv * avgBlockRate;
+                    const battSavH = battConsH * avgBlockRate;
+                    const totalExportH = expHv; // PV→Grid + Batt→Grid
+                    const expSavH = totalExportH * avgBlockRate;
 
                     rows.push({
                         date: ds, hour: String(h).padStart(2,'0')+':00',
                         totalGen: actGenH, pvToLoad: pvConsHv, pvToBatt: pvBattHv,
-                        pvToGrid: expHv, battToCons: battConsH, battToGrid: battGridHv,
+                        pvToGrid: Math.max(0, expHv - battGridHv), battToCons: battConsH, battToGrid: battGridHv,
                         gridToCons: gridConsHv, gridToBatt: gridBattHv,
+                        totalExport: totalExportH,
                         predGen: predGenH, actLoad: actLoadH, actGrid: actGridH,
                         utilCost: utilCostH, expSav: expSavH, pvSav: pvSavH,
                         battSav: battSavH, irrad: irradH,
                         tou: blockLabel,
                         wdType: wdTypeLabel, dayName: dayNameLabel
                     });
-                    totals.totalGen += actGenH; totals.pvToLoad += pvConsHv; totals.pvToGrid += expHv;
+                    totals.totalGen += actGenH; totals.pvToLoad += pvConsHv;
+                    totals.totalExport = (totals.totalExport||0) + totalExportH;
                     totals.predGen += predGenH;
                     totals.actLoad += actLoadH; totals.actGrid += actGridH;
                     totals.utilCost += utilCostH; totals.expSav += expSavH;
@@ -4883,13 +4886,14 @@
                 { key:'dayName', label:'Day', show:fields.dayName, fmt: v=>v },
                 { key:'wdType', label:'Weekday/End', show:fields.wdType, fmt: v=>v },
                 { key:'totalGen', label:'PV Gen (kW)', show:fields.totalGen, fmt: v=>v.toFixed(1), numeric:true },
-                { key:'pvToLoad', label:'PV→Load (kW)', show:fields.pvToLoad, fmt: v=>v.toFixed(1), numeric:true },
-                { key:'pvToBatt', label:'PV→Batt (kW)', show:fields.pvToBatt||fields.pvToLoad, fmt: v=>(v||0).toFixed(1), numeric:true },
-                { key:'pvToGrid', label:'PV→Grid (kW)', show:fields.pvToGrid, fmt: v=>v.toFixed(1), numeric:true },
-                { key:'battToCons', label:'Batt→Load (kW)', show:fields.battToCons||fields.pvToLoad, fmt: v=>(v||0).toFixed(1), numeric:true },
-                { key:'battToGrid', label:'Batt→Grid (kW)', show:fields.battToGrid||false, fmt: v=>(v||0).toFixed(1), numeric:true },
-                { key:'gridToCons', label:'Grid→Load (kW)', show:fields.gridToCons||fields.actGrid, fmt: v=>(v||0).toFixed(1), numeric:true },
-                { key:'gridToBatt', label:'Grid→Batt (kW)', show:fields.gridToBatt||false, fmt: v=>(v||0).toFixed(1), numeric:true },
+                { key:'pvToLoad', label:'PV→Load (kW)', show:fields.pvToLoad, fmt: v=>v.toFixed(2), numeric:true },
+                { key:'pvToBatt', label:'PV→Batt (kW)', show:fields.pvToBatt||fields.pvToLoad, fmt: v=>(v||0).toFixed(2), numeric:true },
+                { key:'pvToGrid', label:'PV→Grid (kW)', show:fields.pvToGrid, fmt: v=>v.toFixed(2), numeric:true },
+                { key:'totalExport', label:'Total Export (kW)', show:fields.pvToGrid, fmt: v=>(v||0).toFixed(2), numeric:true },
+                { key:'battToCons', label:'Batt→Load (kW)', show:fields.battToCons||fields.pvToLoad, fmt: v=>(v||0).toFixed(2), numeric:true },
+                { key:'battToGrid', label:'Batt→Grid (kW)', show:fields.battToGrid||false, fmt: v=>(v||0).toFixed(2), numeric:true },
+                { key:'gridToCons', label:'Grid→Load (kW)', show:fields.gridToCons||fields.actGrid, fmt: v=>(v||0).toFixed(2), numeric:true },
+                { key:'gridToBatt', label:'Grid→Batt (kW)', show:fields.gridToBatt||false, fmt: v=>(v||0).toFixed(2), numeric:true },
                 { key:'predGen', label:'Predicted (kW)', show:fields.predGen, fmt: v=>v.toFixed(1), numeric:true },
                 { key:'actLoad', label:'Load (kW)', show:fields.actLoad, fmt: v=>v.toFixed(1), numeric:true },
                 { key:'actGrid', label:'Grid Import (kW)', show:fields.actGrid, fmt: v=>v.toFixed(1), numeric:true },
@@ -4931,7 +4935,7 @@
             const summaryCards = [];
             if (fields.totalGen) summaryCards.push({label:'Total Generation', val:fmt(totals.totalGen)+' kWh'});
             if (fields.pvToLoad) summaryCards.push({label:'PV to Load', val:fmt(totals.pvToLoad)+' kWh'});
-            if (fields.pvToGrid) summaryCards.push({label:'PV to Grid', val:fmt(totals.pvToGrid)+' kWh'});
+            if (fields.pvToGrid) summaryCards.push({label:'Total Export', val:fmt(totals.totalExport||totals.pvToGrid)+' kWh'});
             if (fields.predGen) summaryCards.push({label:'Total Predicted', val:fmt(totals.predGen)+' kWh'});
             if (fields.totalGen && fields.predGen) {
                 const perf = totals.predGen > 0 ? (totals.totalGen/totals.predGen*100).toFixed(1) : '--';
@@ -4961,6 +4965,7 @@
                 { key:'pvToLoad', label:'PV→Load (kW)', show:fields.pvToLoad },
                 { key:'pvToBatt', label:'PV→Batt (kW)', show:fields.pvToBatt||fields.pvToLoad },
                 { key:'pvToGrid', label:'PV→Grid (kW)', show:fields.pvToGrid },
+                { key:'totalExport', label:'Total Export (kW)', show:fields.pvToGrid },
                 { key:'battToCons', label:'Batt→Load (kW)', show:fields.battToCons||fields.pvToLoad },
                 { key:'battToGrid', label:'Batt→Grid (kW)', show:fields.battToGrid },
                 { key:'gridToCons', label:'Grid→Load (kW)', show:fields.gridToCons||fields.actGrid },
