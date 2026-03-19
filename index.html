@@ -4228,6 +4228,7 @@
             // Flow lines
             document.getElementById('lt-pv-toload').textContent = fmt(lifeSC) + ' kWh';
             document.getElementById('lt-pv-togrid').textContent = fmt(lifeExport) + ' kWh';
+            try { document.getElementById('lt-pv-tobatt').textContent = fmt(dashData.all_time_totals?.['PV to Battery (kWh)']||0) + ' kWh'; } catch(e) {}
 
             // Coverage slab
             document.getElementById('lt-cov').textContent = actCov.toFixed(1);
