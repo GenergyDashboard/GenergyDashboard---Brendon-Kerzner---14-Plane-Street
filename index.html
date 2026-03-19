@@ -1356,7 +1356,7 @@
                     <h3>Savings Breakdown</h3>
                     <div class="env-table-wrap">
                         <table class="env-table">
-                            <thead><tr><th>Block</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
+                            <thead><tr><th>Block</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
                             <tbody id="monthlySavingsBody"></tbody>
                         </table>
                     </div>
@@ -1474,7 +1474,7 @@
                     <h3>Lifetime Block Tariff Savings Breakdown</h3>
                     <div class="env-table-wrap">
                         <table class="env-table">
-                            <thead><tr><th>Block</th><th>Generation</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
+                            <thead><tr><th>Block</th><th>Utility Cost</th><th>PV Savings</th><th>Export Savings</th><th>Total Savings</th></tr></thead>
                             <tbody id="lifetimeSavingsBody"></tbody>
                         </table>
                     </div>
@@ -3597,7 +3597,7 @@
                     const roomInBlock = Math.max(0, bLimit - Math.max(cumPos, bStart));
                     if (roomInBlock <= 0 || remLoad <= 0) {
                         // Day doesn't reach this block, or no consumption left
-                        h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>0 kWh</td><td>R0</td><td style="color:var(--green)">R0</td><td style="color:#38bdf8">R0</td><td style="color:var(--green)">R0</td></tr>';
+                        h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>R0</td><td style="color:var(--green)">R0</td><td style="color:#38bdf8">R0</td><td style="color:var(--green)">R0</td></tr>';
                         prev = bLimit;
                         continue;
                     }
@@ -3613,13 +3613,13 @@
                     const pvSav = scInBlock * bRate;
                     const expSav = expInBlock * bRate;
                     totUtil += utilCost; totPvS += pvSav; totExpS += expSav; totGen += genInBlock;
-                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>'+fmtDec(genInBlock,1)+' kWh</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(pvSav)+'</td><td style="color:#38bdf8">R'+fmt(expSav)+'</td><td style="color:var(--green)">R'+fmt(pvSav + expSav)+'</td></tr>';
+                    h += '<tr><td style="text-align:left">'+blkLabels[i]+'</td><td>R'+fmt(utilCost)+'</td><td style="color:var(--green)">R'+fmt(pvSav)+'</td><td style="color:#38bdf8">R'+fmt(expSav)+'</td><td style="color:var(--green)">R'+fmt(pvSav + expSav)+'</td></tr>';
                     remLoad -= loadInBlock;
                     cumPos += loadInBlock;
                     prev = bLimit;
                 }
-                if (dayExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh</td></tr>';
-                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(dayPV)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
+                if (dayExp > 0) h += '<tr><td colspan="5" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh</td></tr>';
+                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
             }
@@ -4067,11 +4067,11 @@
                 const utilCost = b.gridCost || 0;
                 const expCost = b.exportCost || 0;
                 totPvS += b.cost; totUtil += utilCost; totGen += genKwh; totExpS += expCost; totExpKwh += (b.exportKwh||0);
-                h += `<tr><td style="text-align:left">${labels[i]}</td><td>${fmtDec(genKwh,1)} kWh</td><td>R${fmt(utilCost)}</td><td style="color:var(--green);">R${fmt(b.cost)}</td><td style="color:#38bdf8;">R${fmt(expCost)}</td><td style="color:var(--green);">R${fmt(b.cost + expCost)}</td></tr>`;
+                h += `<tr><td style="text-align:left">${labels[i]}</td><td>R${fmt(utilCost)}</td><td style="color:var(--green);">R${fmt(b.cost)}</td><td style="color:#38bdf8;">R${fmt(expCost)}</td><td style="color:var(--green);">R${fmt(b.cost + expCost)}</td></tr>`;
             });
             const mPVYield = md['PV Yield (kWh)'] || totGen;
-            h += `<tr class="total-row"><td style="text-align:left">Total</td><td>${fmt(mPVYield)} kWh</td><td>R${fmt(totUtil)}</td><td style="color:var(--green);">R${fmt(totPvS)}</td><td style="color:#38bdf8;">R${fmt(totExpS)}</td><td style="color:var(--green);font-weight:700;">R${fmt(sav.total)}</td></tr>`;
-            if (mExp > 0) h += `<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:8px;">Export to grid: ${fmtDec(mExp,1)} kWh (included in generation above)</td></tr>`;
+            h += `<tr class="total-row"><td style="text-align:left">Total</td><td>R${fmt(totUtil)}</td><td style="color:var(--green);">R${fmt(totPvS)}</td><td style="color:#38bdf8;">R${fmt(totExpS)}</td><td style="color:var(--green);font-weight:700;">R${fmt(sav.total)}</td></tr>`;
+            if (mExp > 0) h += `<tr><td colspan="5" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:8px;">Export to grid: ${fmtDec(mExp,1)} kWh (included in generation above)</td></tr>`;
             tbody.innerHTML = h;
         }
 
@@ -6016,15 +6016,15 @@
             children.push(h1('4. Financial Overview'));
             children.push(accent());
             if(sav && sav.blockSavings){
-                const fC=[TW*0.17,TW*0.17,TW*0.17,TW*0.17,TW*0.16,TW*0.16].map(Math.floor);
+                const fC=[TW*0.20,TW*0.20,TW*0.20,TW*0.20,TW*0.20].map(Math.floor);
                 const blkNames=['Block 1 (0–50)','Block 2 (51–350)','Block 3 (351–600)','Block 4 (600+)'];
-                const fRows=[row(hdr('Block',fC[0]),hdr('Generation',fC[1]),hdr('Utility Cost',fC[2]),hdr('PV Savings',fC[3]),hdr('Export Savings',fC[4]),hdr('Total Savings',fC[5]))];
+                const fRows=[row(hdr('Block',fC[0]),hdr('Utility Cost',fC[1]),hdr('PV Savings',fC[2]),hdr('Export Savings',fC[3]),hdr('Total Savings',fC[4]))];
                 sav.blockSavings.forEach((b,i)=>{
                     const genKwh=b.genKwh||((b.kwh||0)+(b.exportKwh||0));
                     const fl=i%2===0?undefined:LIGHT;
-                    fRows.push(row(cel(blkNames[i],fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:fl}),cel(fN(genKwh)+' kWh',fC[1],{fill:fl}),cel('R'+fN(b.gridCost||0),fC[2],{fill:fl}),cel('R'+fN(b.cost),fC[3],{fill:fl,color:GREEN}),cel('R'+fN(b.exportCost||0),fC[4],{fill:fl,color:'2563EB'}),cel('R'+fN(b.cost+(b.exportCost||0)),fC[5],{fill:fl,bold:true,color:GREEN})));
+                    fRows.push(row(cel(blkNames[i],fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:fl}),cel('R'+fN(b.gridCost||0),fC[1],{fill:fl}),cel('R'+fN(b.cost),fC[2],{fill:fl,color:GREEN}),cel('R'+fN(b.exportCost||0),fC[3],{fill:fl,color:'2563EB'}),cel('R'+fN(b.cost+(b.exportCost||0)),fC[4],{fill:fl,bold:true,color:GREEN})));
                 });
-                fRows.push(row(cel('Total',fC[0],{bold:true,fill:DARK,color:WHITE}),cel(fN(actPV)+' kWh',fC[1],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(utilityCost),fC[2],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(pvSav),fC[3],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(expSav),fC[4],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(totalSav),fC[5],{fill:DARK,color:'FFD700',bold:true})));
+                fRows.push(row(cel('Total',fC[0],{bold:true,fill:DARK,color:WHITE}),cel('R'+fN(utilityCost),fC[1],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(pvSav),fC[2],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(expSav),fC[3],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(totalSav),fC[4],{fill:DARK,color:'FFD700',bold:true})));
                 children.push(tbl(fC,fRows));
             }
             children.push(sp(80));
