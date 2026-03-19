@@ -10,10 +10,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         // Fix blurry text on high-DPI screens
-        Chart.defaults.devicePixelRatio = Math.max(window.devicePixelRatio || 2, 2);
+        Chart.defaults.devicePixelRatio = Math.max(window.devicePixelRatio || 2, 3);
         Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
         const isMobile = () => window.innerWidth <= 600;
-        Chart.defaults.font.size = isMobile() ? 11 : 13;
+        Chart.defaults.font.size = isMobile() ? 12 : 14;
+        Chart.defaults.color = '#ddd';
         // Responsive chart helper: returns font sizes and layout settings for current screen
         function chartMobile() {
             const m = isMobile();
@@ -47,10 +48,13 @@
             --font-scale: 1;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
             background: #000;
             color: var(--text-primary);
             min-height: 100vh;
@@ -485,7 +489,7 @@
         .tou-pill.off-peak { background: rgba(74,222,128,0.2); color: var(--green); }
         .legend-swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
         .legend-swatch.dashed { border: 2px dashed; background: transparent; }
-        .chart-wrap { position: relative; height: 350px; padding-right: 5px; margin-top: 8px; touch-action: pan-y; }
+        .chart-wrap { position: relative; height: 350px; image-rendering: -webkit-optimize-contrast; padding-right: 5px; margin-top: 8px; touch-action: pan-y; }
         .env-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 30px; align-items: stretch; }
         .fin-tou-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 30px; }
 
@@ -1368,8 +1372,8 @@
                         <div class="chart-legend-more" onclick="this.classList.toggle('open')">
                             <span class="more-btn">More ▼</span>
                             <div class="more-items">
-                                <div class="chart-legend-item off" data-mds="m-actLoad" onclick="event.stopPropagation();toggleMonthlyDs('m-actLoad')"><span class="legend-swatch" style="background:#ef4444;"></span>Actual Load (Avg)</div>
-                                <div class="chart-legend-item off" data-mds="m-actGrid" onclick="event.stopPropagation();toggleMonthlyDs('m-actGrid')"><span class="legend-swatch" style="background:#f97316;"></span>Actual Grid (Avg)</div>
+                                <div class="chart-legend-item off" data-mds="m-actLoad" onclick="event.stopPropagation();toggleMonthlyDs('m-actLoad')"><span class="legend-swatch" style="background:#ef4444;"></span>Avg Daily Load</div>
+                                <div class="chart-legend-item off" data-mds="m-actGrid" onclick="event.stopPropagation();toggleMonthlyDs('m-actGrid')"><span class="legend-swatch" style="background:#f97316;"></span>Avg Daily Grid</div>
                             </div>
                         </div>
                     </div>
@@ -2419,6 +2423,13 @@
 
             // Info bar
             document.getElementById('infoLastUpdate').textContent = d.last_updated || '--';
+            // Show data date on today slab if stale
+            const dataDate = d.today?.date || '';
+            const actualToday = new Date().toISOString().split('T')[0];
+            const todaySlabLabel = document.querySelector('#tab-overview .slab-label');
+            if (dataDate && dataDate !== actualToday && todaySlabLabel) {
+                todaySlabLabel.textContent = 'TODAY (' + dataDate + ')';
+            }
             // Days active from system start (2026-01-21)
                 const sysStartMs = new Date(CC.system_start_year, CC.system_start_month - 1, 21).getTime();
                 const daysActive = Math.floor((Date.now() - sysStartMs) / 86400000);
@@ -3999,12 +4010,20 @@
             const irradScale = maxPV / maxIrrad;
 
             const avgActPVLine = [], avgExpPVLine = [];
-            dailyData.forEach(dd => {
+            // Build chart arrays with running averages for load/grid
+            let runLoadSum = 0, runGridSum = 0, runDaysWithData = 0;
+            dailyData.forEach((dd, idx) => {
                 labels.push(String(dd.d).padStart(2,'0') + ' ' + monthNames[mo]);
                 actGen.push(Math.round(dd.dayActPV));
                 irradScaled.push(Math.round(dd.irradDaily * irradScale));
-                actLoadArr.push(Math.round(dd.dayActLoad));
-                actGridArr.push(Math.round(dd.dayActGrid));
+                // Running average for load and grid
+                if (dd.dayActLoad > 0 || dd.dayActGrid > 0) {
+                    runDaysWithData++;
+                    runLoadSum += dd.dayActLoad;
+                    runGridSum += dd.dayActGrid;
+                }
+                actLoadArr.push(runDaysWithData > 0 ? Math.round(runLoadSum / runDaysWithData) : null);
+                actGridArr.push(runDaysWithData > 0 ? Math.round(runGridSum / runDaysWithData) : null);
                 avgActPVLine.push(Math.round(avgActPV));
                 avgExpPVLine.push(Math.round(avgExpPV));
             });
@@ -4017,8 +4036,8 @@
                     datasets: [
                         { type:'bar', label:'PV Generation (kWh)', data:actGen, backgroundColor:'rgba(74,222,128,0.5)', borderColor:'#4ade80', borderWidth:1, borderRadius:3, yAxisID:'y', hidden:!monthlyDsVis['m-actGen'], order:3 },
                         { type:'line', label:'Scaled Irradiation (kWh equiv)', data:irradScaled, backgroundColor:'rgba(255,215,0,0.15)', borderColor:'rgba(255,215,0,0.6)', borderWidth:1.5, pointRadius:0, tension:0.4, fill:true, yAxisID:'y', hidden:!monthlyDsVis['m-irrad'], order:2 },
-                        { type:'line', label:'Actual Load (Avg)', data:actLoadArr, borderColor:'#ef4444', borderWidth:2.5, pointRadius:0, tension:0, fill:false, yAxisID:'y', hidden:!monthlyDsVis['m-actLoad'], order:0 },
-                        { type:'line', label:'Actual Grid (Avg)', data:actGridArr, borderColor:'#f97316', borderWidth:2.5, pointRadius:0, tension:0, fill:false, yAxisID:'y', hidden:!monthlyDsVis['m-actGrid'], order:0 },
+                        { type:'line', label:'Avg Daily Load (MTD)', data:actLoadArr, borderColor:'#ef4444', borderWidth:2.5, pointRadius:0, tension:0, fill:false, yAxisID:'y', hidden:!monthlyDsVis['m-actLoad'], order:0 },
+                        { type:'line', label:'Avg Daily Grid (MTD)', data:actGridArr, borderColor:'#f97316', borderWidth:2.5, pointRadius:0, tension:0, fill:false, yAxisID:'y', hidden:!monthlyDsVis['m-actGrid'], order:0 },
                         { type:'line', label:'Avg PV (MTD)', data:avgActPVLine, borderColor:'#4ade80', borderWidth:2, pointRadius:0, tension:0, fill:false, yAxisID:'y', hidden:!monthlyDsVis['m-avgPV'], order:1 },
                         { type:'line', label:'Avg Predicted PV (MTD)', data:avgExpPVLine, borderColor:'#60a5fa', borderWidth:2, borderDash:[6,4], pointRadius:0, tension:0, fill:false, yAxisID:'y', hidden:!monthlyDsVis['m-avgExpPV'], order:1 }
                     ]
@@ -4489,7 +4508,7 @@
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
                     plugins:{legend:{labels:{color:'#ddd',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
-                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#ccc'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:true,text:'Cumulative (R)',color:'#ffd700'}}}}
+                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#eee'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:true,text:'Cumulative (R)',color:'#ffd700'}}}}
             });
 
             // Cost comparison chart
@@ -4501,7 +4520,7 @@
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
                     plugins:{legend:{labels:{color:'#ddd',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
-                    scales:{x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#ccc'}}}}
+                    scales:{x:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#eee'}}}}
             });
         }
 
@@ -4865,7 +4884,7 @@
             a.href = url;
             const s = document.getElementById('rptStartDate').value;
             const e = document.getElementById('rptEndDate').value;
-            a.download = 'Nautica_Report_' + s + '_to_' + e + '.csv';
+            a.download = '14PlaneStreet_Report_' + s + '_to_' + e + '.csv';
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -5444,7 +5463,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'Nautica_Downtime_'+dtRange+'_'+new Date().toISOString().split('T')[0]+'.csv';
+            a.download = '14PlaneStreet_Downtime_'+dtRange+'_'+new Date().toISOString().split('T')[0]+'.csv';
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -5594,7 +5613,7 @@
             const origLtRange = lifetimeRange;
             lifetimeRange = 12;
             const lCaps = await captureTab('lifetime', () => renderLifetimeTab(),
-                { genChart: 'lifetimeGenChart', savChart: 'lifetimeSavChart' }, {});
+                { genChart: 'lifetimeGenChart' }, {});
             lifetimeRange = origLtRange; // restore
 
             // Financial tab — force 12M range before capturing
@@ -5638,7 +5657,7 @@
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:80},children:[new D.TextRun({text:'GENERGY',font:'Segoe UI',size:72,bold:true,color:'2E3557'})]}));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:250},children:[new D.TextRun({text:'INSPIRED SUSTAINABILITY',font:'Segoe UI',size:24,italics:true,color:LIME})]}));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,border:{bottom:{style:D.BorderStyle.SINGLE,size:4,color:LIME,space:6}},spacing:{after:350},children:[new D.TextRun({text:'MONTHLY PERFORMANCE REPORT',font:'Segoe UI',size:36,bold:true,color:DTEXT})]}));
-            children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:50},children:[new D.TextRun({text:'NAUTICA SHOPPING CENTRE',font:'Segoe UI',size:22,color:GRAY})]}));
+            children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:50},children:[new D.TextRun({text:'14 PLANE STREET, JEFFREYS BAY',font:'Segoe UI',size:22,color:GRAY})]}));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:350},children:[new D.TextRun({text:monthName.toUpperCase()+' '+yr,font:'Segoe UI',size:22,color:GRAY})]}));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:2,color:LIME,space:6}},spacing:{before:150}}));
             ['PREPARED FOR: CLIENT','SITE: 14 PLANE STREET','SYSTEM SIZE: VICTRON HYBRID + BATTERY',
@@ -5659,9 +5678,11 @@
                 stat('PV COVERAGE',coverage.toFixed(1),'%',cw4))]));
             children.push(sp(30));
             // Row 2: Energy Flow
-            children.push(tbl([cw4,cw4,cw4,cw4],[row(
-                stat('SELF-CONSUMPTION',fN(actSC),'kWh',cw4),stat('EXPORT TO GRID',fN(actExp),'kWh',cw4),
-                stat('GRID IMPORT',fN(actGrid),'kWh',cw4),stat('TOTAL LOAD',fN(actLoad),'kWh',cw4))]));
+            const actBattCons=md['Battery to Load (kWh)']||0;
+            const cw5=Math.floor(TW/5);
+            children.push(tbl([cw5,cw5,cw5,cw5,cw5],[row(
+                stat('PV→LOAD',fN(actSC),'kWh',cw5),stat('BATT→LOAD',fN(actBattCons),'kWh',cw5),stat('EXPORT',fN(actExp),'kWh',cw5),
+                stat('GRID IMPORT',fN(actGrid),'kWh',cw5),stat('TOTAL LOAD',fN(actLoad),'kWh',cw5))]));
             children.push(sp(30));
             // Row 3: Financial
             const utilityCost = sav ? (sav.utility_cost?.total||0) : 0;
@@ -5779,22 +5800,22 @@
             children.push(h2('Monthly Generation Breakdown'));
             children.push(img(lCaps.genChart, 700, 320));
             children.push(sp(60));
-            children.push(h2('Monthly Savings Breakdown'));
-            children.push(img(lCaps.savChart, 700, 320));
             children.push(new D.Paragraph({children:[new D.PageBreak()]}));
 
             // ════ FINANCIAL ════
             children.push(h1('4. Financial Overview'));
             children.push(accent());
-            if(sav){
+            if(sav && sav.blockSavings){
                 const fC=[TW*0.17,TW*0.17,TW*0.17,TW*0.17,TW*0.16,TW*0.16].map(Math.floor);
-                children.push(tbl(fC,[
-                    row(hdr('Block',fC[0]),hdr('Generation',fC[1]),hdr('Utility Cost',fC[2]),hdr('PV Savings',fC[3]),hdr('Export Savings',fC[4]),hdr('Total Savings',fC[5])),
-                    row(cel('Peak',fC[0],{bold:true,align:D.AlignmentType.LEFT}),cel(fN(sav.generation?.peak)+' kWh',fC[1]),cel('R'+fN(sav.utility_cost?.peak),fC[2]),cel('R'+fN(sav.pv_savings?.peak),fC[3]),cel('R'+fN(sav.export_savings?.peak),fC[4]),cel('R'+fN((sav.pv_savings?.peak||0)+(sav.export_savings?.peak||0)),fC[5],{bold:true,color:GREEN})),
-                    row(cel('Standard',fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:LIGHT}),cel(fN(sav.generation?.standard)+' kWh',fC[1],{fill:LIGHT}),cel('R'+fN(sav.utility_cost?.standard),fC[2],{fill:LIGHT}),cel('R'+fN(sav.pv_savings?.standard),fC[3],{fill:LIGHT}),cel('R'+fN(sav.export_savings?.standard),fC[4],{fill:LIGHT}),cel('R'+fN((sav.pv_savings?.standard||0)+(sav.export_savings?.standard||0)),fC[5],{fill:LIGHT,bold:true,color:GREEN})),
-                    row(cel('Off-Peak',fC[0],{bold:true,align:D.AlignmentType.LEFT}),cel(fN(sav.generation?.off_peak)+' kWh',fC[1]),cel('R'+fN(sav.utility_cost?.off_peak),fC[2]),cel('R'+fN(sav.pv_savings?.off_peak),fC[3]),cel('R'+fN(sav.export_savings?.off_peak),fC[4]),cel('R'+fN((sav.pv_savings?.off_peak||0)+(sav.export_savings?.off_peak||0)),fC[5],{bold:true,color:GREEN})),
-                    row(cel('Total',fC[0],{bold:true,fill:DARK,color:WHITE}),cel(fN(sav.generation?.total)+' kWh',fC[1],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(sav.utility_cost?.total),fC[2],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(pvSav),fC[3],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(expSav),fC[4],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(totalSav),fC[5],{fill:DARK,color:'FFD700',bold:true}))
-                ]));
+                const blkNames=['Block 1 (0–50)','Block 2 (51–350)','Block 3 (351–600)','Block 4 (600+)'];
+                const fRows=[row(hdr('Block',fC[0]),hdr('Generation',fC[1]),hdr('Utility Cost',fC[2]),hdr('PV Savings',fC[3]),hdr('Export Savings',fC[4]),hdr('Total Savings',fC[5]))];
+                sav.blockSavings.forEach((b,i)=>{
+                    const genKwh=(b.kwh||0)+(b.exportKwh||0);
+                    const fl=i%2===0?undefined:LIGHT;
+                    fRows.push(row(cel(blkNames[i],fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:fl}),cel(fN(genKwh)+' kWh',fC[1],{fill:fl}),cel('R'+fN(b.gridCost||0),fC[2],{fill:fl}),cel('R'+fN(b.cost),fC[3],{fill:fl,color:GREEN}),cel('R'+fN(b.exportCost||0),fC[4],{fill:fl,color:'2563EB'}),cel('R'+fN(b.cost+(b.exportCost||0)),fC[5],{fill:fl,bold:true,color:GREEN})));
+                });
+                fRows.push(row(cel('Total',fC[0],{bold:true,fill:DARK,color:WHITE}),cel('',fC[1],{fill:DARK,color:WHITE,bold:true}),cel('',fC[2],{fill:DARK,color:WHITE,bold:true}),cel('R'+fN(pvSav),fC[3],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(expSav),fC[4],{fill:DARK,color:'FFD700',bold:true}),cel('R'+fN(totalSav),fC[5],{fill:DARK,color:'FFD700',bold:true})));
+                children.push(tbl(fC,fRows));
             }
             children.push(sp(80));
             children.push(h2('Savings Over Time'));
@@ -5817,7 +5838,7 @@
                 const fl=i%2===0?undefined:LIGHT;
                 wR.push(row(
                     cel(w.item,wC[0],{bold:true,align:D.AlignmentType.LEFT,fill:fl,sz:16}),
-                    cel('19 Dec 2023',wC[1],{fill:fl,sz:16}),
+                    cel(w.start.split('-').reverse().join('/'),wC[1],{fill:fl,sz:16}),
                     cel(w.years+' years',wC[2],{fill:fl,sz:16}),
                     cel(ex.getDate()+' '+mShort[ex.getMonth()+1]+' '+ex.getFullYear(),wC[3],{fill:fl,sz:16}),
                     cel(isExp?'Expired':remYrs.toFixed(1)+' yrs',wC[4],{fill:fl,sz:16,bold:true,color:isExp?'DC2626':GREEN}),
@@ -5853,7 +5874,7 @@
             const buffer = await D.Packer.toBlob(doc);
             const url = URL.createObjectURL(buffer);
             const a = document.createElement('a');
-            a.href=url;a.download='Nautica_'+monthName+'_'+yr+'_Report.docx';a.click();
+            a.href=url;a.download='14PlaneStreet_'+monthName+'_'+yr+'_Report.docx';a.click();
             URL.revokeObjectURL(url);
         }
 
@@ -5861,12 +5882,12 @@
         // WARRANTY TAB
         // ══════════════════════════════════════════════════
         const WARRANTY_DATA = [
-            { item: 'Solar Panel Performance', start: '2023-12-19', years: 25 },
-            { item: 'Mounting Structure', start: '2023-12-19', years: 20 },
-            { item: 'Solar Panel Manufacturer\'s Warranty', start: '2023-12-19', years: 12 },
-            { item: 'Inverters', start: '2023-12-19', years: 10 },
-            { item: 'Monitoring Platform', start: '2023-12-19', years: 10 },
-            { item: 'Workmanship', start: '2023-12-19', years: 1 }
+            { item: 'Solar Panel Performance', start: '2026-01-21', years: 25 },
+            { item: 'Victron Quattro Inverter', start: '2026-01-21', years: 5 },
+            { item: 'Hubble Blade LiFePO4 Battery', start: '2026-01-21', years: 10 },
+            { item: 'BlueSolar MPPT Controller', start: '2026-01-21', years: 5 },
+            { item: 'Cerbo GX Monitoring', start: '2026-01-21', years: 5 },
+            { item: 'Workmanship', start: '2026-01-21', years: 1 }
         ];
         const warrantyCharts = {};
 
@@ -6562,7 +6583,7 @@
                 </div>
                 <div>
                     <label style="color:#94a3b8;font-size:0.78em;display:block;margin-bottom:4px;">Repository Name</label>
-                    <input type="text" id="ghSetupRepo" class="calc-input" style="width:100%;text-align:left;" placeholder="e.g. Nautica-Mall">
+                    <input type="text" id="ghSetupRepo" class="calc-input" style="width:100%;text-align:left;" placeholder="e.g. 14-Plane-Street">
                 </div>
                 <div>
                     <label style="color:#94a3b8;font-size:0.78em;display:block;margin-bottom:4px;">Personal Access Token</label>
