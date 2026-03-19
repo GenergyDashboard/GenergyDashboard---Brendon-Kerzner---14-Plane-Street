@@ -3407,16 +3407,14 @@
         function renderDailyTab(dateStr, rec) {
             const statusEl = document.getElementById('dailyStatus');
             const todayDate = dashData?.today?.date || '';
-            const pipelineHour = dashData?.hourly?.current_hour;
             let lastDataHour;
             
-            if (dateStr === todayDate && pipelineHour !== undefined && pipelineHour !== null) {
-                // Today's date: use pipeline's current_hour (when scraper last ran)
-                lastDataHour = pipelineHour;
-            } else if (rec.current_hour !== undefined && rec.current_hour !== null) {
-                lastDataHour = rec.current_hour;
+            if (dateStr === todayDate) {
+                // Today's data: use pipeline's current_hour (max hour in today's XLSX)
+                const ph = dashData?.hourly?.current_hour;
+                lastDataHour = (ph !== undefined && ph !== null) ? ph : 23;
             } else {
-                // Historical day: assume full day
+                // Historical day: full day
                 lastDataHour = 23;
             }
             const isPartial = lastDataHour < 23;
