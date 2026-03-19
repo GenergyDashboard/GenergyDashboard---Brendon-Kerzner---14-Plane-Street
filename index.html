@@ -1843,6 +1843,13 @@
             // Performance thresholds (Coverage: higher=better)
             thresh_cov_good: 30,
             thresh_cov_neutral: 10,
+            block1_rate: 2.5060,
+            block2_rate: 2.8534,
+            block3_rate: 3.6619,
+            block4_rate: 4.0402,
+            block1_limit: 50,
+            block2_limit: 350,
+            block3_limit: 600,
             // Performance thresholds (Load/Grid inverted: lower=better)
             thresh_inv_good: 105,
             thresh_inv_neutral: 115,
@@ -1866,6 +1873,8 @@
         // Force correct coverage thresholds (block tariff site)
         CC.thresh_cov_good = 30;
         CC.thresh_cov_neutral = 10;
+        // Refresh block tariff from CC (in case rates were edited)
+        BLOCK_TARIFF = getBlockTariff();
         function saveCalcConfig() { localStorage.setItem('nautica-calc-config', JSON.stringify(CC)); }
 
         // ENV object now reads from CC
@@ -1873,12 +1882,16 @@
         // ══════════════════════════════════════════════════
         // BLOCK TARIFF (replaces TOU for this site)
         // ══════════════════════════════════════════════════
-        const BLOCK_TARIFF = [
-            { limit: 50,       rate: 2.5060, label: 'Block 1 (0–50 kWh)' },
-            { limit: 350,      rate: 2.8534, label: 'Block 2 (51–350 kWh)' },
-            { limit: 600,      rate: 3.6619, label: 'Block 3 (351–600 kWh)' },
-            { limit: Infinity, rate: 4.0402, label: 'Block 4 (600+ kWh)' }
-        ];
+        // Block tariff reads from CC (editable via Calculation Settings)
+        function getBlockTariff() {
+            return [
+                { limit: CC.block1_limit, rate: CC.block1_rate, label: 'Block 1 (0–'+CC.block1_limit+' kWh)' },
+                { limit: CC.block2_limit, rate: CC.block2_rate, label: 'Block 2 ('+(CC.block1_limit+1)+'–'+CC.block2_limit+' kWh)' },
+                { limit: CC.block3_limit, rate: CC.block3_rate, label: 'Block 3 ('+(CC.block2_limit+1)+'–'+CC.block3_limit+' kWh)' },
+                { limit: Infinity,        rate: CC.block4_rate, label: 'Block 4 ('+CC.block3_limit+'+ kWh)' }
+            ];
+        }
+        let BLOCK_TARIFF = getBlockTariff();
         function calcBlockCost(kwh) {
             let rem = kwh, cost = 0, prev = 0, bd = [];
             for (const b of BLOCK_TARIFF) {
@@ -3575,7 +3588,7 @@
                     prev = bLimit;
                 }
                 if (dayExp > 0) h += '<tr><td colspan="6" style="text-align:left;color:var(--text-secondary);font-size:var(--font-xs);padding-top:4px;">Export to grid: '+fmtDec(dayExp,1)+' kWh</td></tr>';
-                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmtDec(dayPV,1)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
+                h += '<tr class="total-row"><td style="text-align:left">Total</td><td>'+fmt(dayPV)+' kWh</td><td>R'+fmt(totUtil)+'</td><td style="color:var(--green)">R'+fmt(totPvS)+'</td><td style="color:#38bdf8">R'+fmt(totExpS)+'</td><td style="color:var(--green);font-weight:700">R'+fmt(totPvS + totExpS)+'</td></tr>';
                 tbody.innerHTML = h;
                 return;
             }
@@ -6087,6 +6100,13 @@
                 { key:'thresh_pv_neutral', label:'PV Neutral', desc:'Amber threshold (≥)', unit:'%', step:1 },
                 { key:'thresh_cov_good', label:'Coverage Good', desc:'Green threshold (≥)', unit:'%', step:1 },
                 { key:'thresh_cov_neutral', label:'Coverage Neutral', desc:'Amber threshold (≥)', unit:'%', step:1 },
+                { key:'block1_rate', label:'Block 1 Rate (0–50)', desc:'Cents per kWh', unit:'R/kWh', step:0.01 },
+                { key:'block2_rate', label:'Block 2 Rate (51–350)', desc:'Cents per kWh', unit:'R/kWh', step:0.01 },
+                { key:'block3_rate', label:'Block 3 Rate (351–600)', desc:'Cents per kWh', unit:'R/kWh', step:0.01 },
+                { key:'block4_rate', label:'Block 4 Rate (600+)', desc:'Cents per kWh', unit:'R/kWh', step:0.01 },
+                { key:'block1_limit', label:'Block 1 Limit', desc:'kWh threshold', unit:'kWh', step:1 },
+                { key:'block2_limit', label:'Block 2 Limit', desc:'kWh threshold', unit:'kWh', step:1 },
+                { key:'block3_limit', label:'Block 3 Limit', desc:'kWh threshold', unit:'kWh', step:1 },
                 { key:'thresh_inv_good', label:'Load/Grid Good', desc:'Green threshold (≤, inverted)', unit:'%', step:1 },
                 { key:'thresh_inv_neutral', label:'Load/Grid Neutral', desc:'Amber threshold (≤, inverted)', unit:'%', step:1 },
             ]},
@@ -6165,6 +6185,8 @@
         }
 
         function applyCalcConfig() {
+            // Refresh block tariff after config change
+            BLOCK_TARIFF = getBlockTariff();
             // Read all inputs into CC
             CALC_FIELDS.forEach(section => {
                 section.fields.forEach(f => {
