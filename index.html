@@ -4637,6 +4637,7 @@
             });
         }
 
+        let rptInited = false;
         function initReportTab() {
             if (!rptInited) {
                 rptInited = true;
@@ -4645,6 +4646,8 @@
                 });
                 setRptPreset('today', document.querySelector('#rptPresets button'));
             }
+            // Also init the DOCX month picker each time
+            initReportDocx();
         }
 
         function updateRptDateLabels() {
@@ -5501,9 +5504,11 @@
         // ══════════════════════════════════════════════════
         function initReportDocx() {
             const sel = document.getElementById('rptDocxMonth');
-            if (!sel || sel.options.length > 1) return;
+            if (!sel || !dashData?.monthly) return;
+            const months = Object.keys(dashData.monthly).sort().reverse();
+            if (months.length === 0) return;
+            if (sel.options.length === months.length) return; // already populated
             sel.innerHTML = '';
-            const months = Object.keys(dashData.monthly || {}).sort().reverse();
             const mN = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             months.forEach((ym, i) => {
                 const [y,m] = ym.split('-');
