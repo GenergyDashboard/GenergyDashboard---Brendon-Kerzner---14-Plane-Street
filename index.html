@@ -1658,7 +1658,7 @@
                             <label class="report-field-chk"><input type="checkbox" data-field="pvSav"> PV Savings</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="irrad"> Irradiation</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="tou"> Block</label>
-                            <label class="report-field-chk"><input type="checkbox" data-field="season"> Season</label>
+                            
                             <label class="report-field-chk"><input type="checkbox" data-field="wdType"> Weekday / Weekend</label>
                             <label class="report-field-chk"><input type="checkbox" data-field="dayName"> Day Name</label>
                         </div>
@@ -4751,30 +4751,33 @@
                 const isToday = ds === todayStr;
                 const maxHour = isToday ? curH : 23;
 
-                // Get hourly data
                 const rec = dailyHist?.[ds];
                 const factor = degradationFactor(yr);
                 const pvsPat = getPvsystDay(mmdd);
                 const monthlyAvg = calcPvsystMonthlyHourlyAvg(yr, mo);
-                const season = seasons[String(mo)] || 'low_demand';
-                const seasonLabel = season === 'high_demand' ? 'High Demand' : 'Low Demand';
                 const wd = d.getDay();
-                const dayType = wd===0?'sunday':wd===6?'saturday':'weekday';
-                const schedule = tou_sched[season]?.[dayType] || [];
                 const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
                 const wdTypeLabel = (wd === 0 || wd === 6) ? 'Weekend' : 'Weekday';
                 const dayNameLabel = dayNames[wd];
 
+                // Determine block rate for this hour based on cumulative month load
+                const ym = yr + '-' + mm;
+                const md = dashData.monthly?.[ym] || {};
+                const mLoad = md['Consumption (kWh)'] || 0;
+                const mCost = calcBlockCost(mLoad);
+                const avgBlockRate = mLoad > 0 ? mCost.cost / mLoad : BLOCK_TARIFF[0].rate;
+
                 // Hourly arrays
-                let pvH, loadH, gridH, expH;
+                let pvH, loadH, gridH, expH, battH;
                 if (isToday && dashData.hourly) {
                     pvH = dashData.hourly.pv || []; loadH = dashData.hourly.load || [];
                     gridH = dashData.hourly.grid || []; expH = dashData.hourly.export || [];
+                    battH = dashData.hourly.batt || [];
                 } else if (rec?.hourly?.pv) {
                     pvH = rec.hourly.pv; loadH = rec.hourly.load || [];
                     gridH = rec.hourly.grid || []; expH = rec.hourly.export || [];
+                    battH = rec.hourly.batt || [];
                 } else {
-                    // Distribute daily totals using patterns
                     const dailyPV = rec?.pv || 0;
                     const dailyLoad = rec?.consumption || 0;
                     const dailyGrid = rec?.import || 0;
@@ -4786,10 +4789,32 @@
                     loadH = avgL.map(v => dailyLoad * (v/lTotal));
                     gridH = avgL.map(v => dailyGrid * (v/lTotal));
                     expH = pvsPat.map(v => dailyExp * (v/pTotal));
+                    battH = new Array(24).fill(0);
                 }
 
-                // Irradiation for this day
-                const irradDay = irradData?.daily_records?.[ds]?.hourly_wm2 || new Array(24).fill(0);
+                // Irradiation - support both file format and API format
+                let irradDay = new Array(24).fill(0);
+                if (irradData?.daily_records?.[ds]?.hourly_wm2) {
+                    const raw = irradData.daily_records[ds].hourly_wm2;
+                    for (let i = 0; i < 23; i++) irradDay[i] = raw[i+1] || 0;
+                } else if (irradData?.hourly?.time && irradData?.hourly?.direct_radiation) {
+                    irradData.hourly.time.forEach((t, idx) => {
+                        if (t.startsWith(ds)) {
+                            const utcH = parseInt(t.slice(11, 13));
+                            const sastH = (utcH + 2) % 24;
+                            irradDay[sastH] = irradData.hourly.direct_radiation[idx] || 0;
+                        }
+                    });
+                }
+
+                // Determine which block this hour falls in (based on avg monthly rate)
+                // Find the block name for the monthly load level
+                let blockLabel = 'Block 1';
+                let prev2 = 0;
+                for (const bt of BLOCK_TARIFF) {
+                    if (mLoad > prev2) { blockLabel = bt.label.split('(')[0].trim(); }
+                    prev2 = bt.limit;
+                }
 
                 for (let h = 0; h <= maxHour; h++) {
                     const actGenH = pvH[h] || 0;
@@ -4797,23 +4822,20 @@
                     const actLoadH = loadH[h] || 0;
                     const actGridH = gridH[h] || 0;
                     const expHv = expH[h] || 0;
+                    const battHv = battH[h] || 0;
                     const scH = Math.max(0, actGenH - expHv);
-                    const period = schedule[h] || 'off_peak';
-                    const rate = rates[season]?.[period] || 0;
-                    const credit = exportCredits[period] || 0;
-                    const utilCostH = actGridH * rate;
-                    const expSavH = expHv * credit;
-                    const pvSavH = scH * rate;
-                    const irradH = (h < 23 ? irradDay[h + 1] : 0) || 0;
-
-                    const periodLabels = {peak:'Peak',standard:'Standard',off_peak:'Off-Peak'};
+                    // Block tariff: use average block rate for the month
+                    const utilCostH = actGridH * avgBlockRate;
+                    const pvSavH = (scH + battHv) * avgBlockRate;  // PV→Load + Batt→Load savings
+                    const expSavH = expHv * avgBlockRate;
+                    const irradH = irradDay[h] || 0;
 
                     rows.push({
                         date: ds, hour: String(h).padStart(2,'0')+':00',
                         totalGen: actGenH, pvToLoad: scH, pvToGrid: expHv,
                         predGen: predGenH, actLoad: actLoadH, actGrid: actGridH,
                         utilCost: utilCostH, expSav: expSavH, pvSav: pvSavH, irrad: irradH,
-                        tou: periodLabels[period]||period, season: seasonLabel,
+                        tou: blockLabel,
                         wdType: wdTypeLabel, dayName: dayNameLabel
                     });
                     totals.totalGen += actGenH; totals.pvToLoad += scH; totals.pvToGrid += expHv;
@@ -4821,6 +4843,7 @@
                     totals.actLoad += actLoadH; totals.actGrid += actGridH;
                     totals.utilCost += utilCostH; totals.expSav += expSavH;
                     totals.pvSav += pvSavH; totals.irrad += irradH;
+                    totals.totalSav = (totals.utilCost || 0);
                 }
                 d.setDate(d.getDate() + 1);
             }
@@ -4852,8 +4875,8 @@
                 { key:'expSav', label:'Export Savings (R)', show:fields.expSav, fmt: v=>v.toFixed(2), numeric:true },
                 { key:'pvSav', label:'PV Savings (R)', show:fields.pvSav, fmt: v=>v.toFixed(2), numeric:true },
                 { key:'irrad', label:'Irradiation (W/m²)', show:fields.irrad, fmt: v=>Math.round(v), numeric:true },
-                { key:'tou', label:'Block', show:fields.tou, fmt: v=>v },
-                { key:'season', label:'Season', show:fields.season, fmt: v=>v }
+                { key:'tou', label:'Block Rate', show:fields.tou, fmt: v=>v },
+                // Season removed (not applicable for block tariff)
             ];
             const activeCols = colDefs.filter(c => c.show);
 
