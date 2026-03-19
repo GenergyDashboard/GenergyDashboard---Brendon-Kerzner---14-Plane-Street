@@ -215,7 +215,7 @@ def main():
     # Build output in Nautica-compatible format
     output = {
         "site_name": "14 Plane Street",
-        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "last_updated": (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M"),
         "today": {"data": make_period_data(today_agg), "date": today_date},
         "yesterday": {"data": make_period_data(yesterday_data)},
         "current_month": {"data": make_period_data(month_agg)},
