@@ -1887,7 +1887,7 @@
             while (bd.length<4) bd.push({kwh:0,cost:0,rate:BLOCK_TARIFF[bd.length]?.rate||0,label:BLOCK_TARIFF[bd.length]?.label||''});
             return {cost, blocks:bd};
         }
-        function calcBlockSavings(load, gridImport, exportKwh, pvSavingsKwh) {
+        function calcBlockSavings(load, gridImport, exportKwh, pvSavingsKwh, pvGenTotal) {
             // pvSavingsKwh = PV→Consumers + Battery→Consumers (what saves them money)
             // gridImport = Grid→Consumers + Grid→Battery (what costs them money)
             // exportKwh = PV→Grid + Battery→Grid (what they push back)
@@ -1918,6 +1918,7 @@
                 const expCostInBlock = expInBlock * lb.rate;
                 totalExportIncome += expCostInBlock;
 
+                const genInBlock = (pvGenTotal || pvKwh) * fraction;
                 blockSavings.push({
                     kwh: Math.round(pvInBlock * 10) / 10,
                     cost: Math.round(pvSavInBlock),
@@ -1926,7 +1927,8 @@
                     gridKwh: Math.round(gridInBlock * 10) / 10,
                     gridCost: Math.round(gridCostInBlock),
                     exportKwh: Math.round(expInBlock * 10) / 10,
-                    exportCost: Math.round(expCostInBlock)
+                    exportCost: Math.round(expCostInBlock),
+                    genKwh: Math.round(genInBlock * 10) / 10
                 });
             });
 
@@ -2405,7 +2407,11 @@
                     else if (period==='current_month') battCons = d.current_month?.data?.['Battery to Load (kWh)']||0;
                     else battCons = d.all_time_totals?.['Battery to Load (kWh)']||0;
                     const pvSavKwh = sc + battCons;  // PV→Cons + Batt→Cons
-                    const bs = calcBlockSavings(load, gridImp, exp, pvSavKwh);
+                    let pvGenT = 0;
+                    if (period==='today') pvGenT = d.today?.data?.['PV Yield (kWh)']||0;
+                    else if (period==='current_month') pvGenT = d.current_month?.data?.['PV Yield (kWh)']||0;
+                    else pvGenT = d.all_time_totals?.['PV Yield (kWh)']||0;
+                    const bs = calcBlockSavings(load, gridImp, exp, pvSavKwh, pvGenT);
                     return { total: bs.total, pv_savings: {total: bs.pvSavings}, export_savings: {total: bs.exportIncome} };
                 }
                 return {};
@@ -3555,7 +3561,7 @@
                     const giInBlock = dayGI * frac;
                     const scInBlock = dayPVsav * frac; // PV→Cons + Batt→Cons
                     const expInBlock = dayExp * frac;
-                    const genInBlock = (dayPVsav + dayExp) * frac;
+                    const genInBlock = dayPV * frac;  // Total PV generation in this block
                     const utilCost = giInBlock * bRate;
                     const pvSav = scInBlock * bRate;
                     const expSav = expInBlock * bRate;
@@ -3823,7 +3829,8 @@
             const load = md['Consumption (kWh)'] || 0;
             const imp = gridImport || md['Import (kWh)'] || 0;
             const pvSavKwh = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
-            const bs = calcBlockSavings(load, imp, exp, pvSavKwh);
+            const pvGenT = md['PV Yield (kWh)']||0;
+            const bs = calcBlockSavings(load, imp, exp, pvSavKwh, pvGenT);
             // Return in format compatible with rendering functions
             return {
                 pv_savings: {total: bs.pvSavings, block1: bs.blockSavings[0]?.cost||0, block2: bs.blockSavings[1]?.cost||0, block3: bs.blockSavings[2]?.cost||0, block4: bs.blockSavings[3]?.cost||0},
@@ -3962,7 +3969,7 @@
             const mExp = md['Export (kWh)'] || 0;
             let h='', totPvS=0, totUtil=0, totGen=0, totExpS=0, totExpKwh=0;
             sav.blockSavings.forEach((b,i) => {
-                const genKwh = (b.kwh||0) + (b.exportKwh||0);
+                const genKwh = b.genKwh || ((b.kwh||0) + (b.exportKwh||0));
                 const utilCost = b.gridCost || 0;
                 const expCost = b.exportCost || 0;
                 totPvS += b.cost; totUtil += utilCost; totGen += genKwh; totExpS += expCost; totExpKwh += (b.exportKwh||0);
@@ -4257,9 +4264,10 @@
                 const md = monthly[ym]; if(!md) return;
                 const load = md['Consumption (kWh)']||0, gi = md['Import (kWh)']||0, exp = md['Export (kWh)']||0;
                 const pvSavKwh = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
+                const pvGenT = md['PV Yield (kWh)']||0;
                 if (typeof calcBlockSavings === 'function') {
-                    const bs = calcBlockSavings(load, gi, exp, pvSavKwh);
-                    bs.blockSavings.forEach((b,i) => { ltBT[i] += b.cost; ltGen[i] += b.kwh; ltExpPerBlock[i] += (b.exportCost||0); });
+                    const bs = calcBlockSavings(load, gi, exp, pvSavKwh, pvGenT);
+                    bs.blockSavings.forEach((b,i) => { ltBT[i] += b.cost; ltGen[i] += (b.genKwh || b.kwh); ltExpPerBlock[i] += (b.exportCost||0); });
                     ltExpTotal += bs.exportIncome;
                     ltExpKwh += exp;
                     // Utility cost from block savings
@@ -4410,8 +4418,9 @@
 
                 // Actual savings via block tariff
                 const pvSavKwh2 = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
+                const pvGenT2 = md['PV Yield (kWh)']||0;
                 if (typeof calcBlockSavings === 'function' && load > 0) {
-                    actSavArr.push(Math.round(calcBlockSavings(load, gi, exp, pvSavKwh2).total));
+                    actSavArr.push(Math.round(calcBlockSavings(load, gi, exp, pvSavKwh2, pvGenT2).total));
                 } else { actSavArr.push(0); }
 
                 // Predicted savings: PVSyst expected × average block rate for that load level
@@ -4492,7 +4501,8 @@
                 const gi = md['Import (kWh)']||0;
                 const exp = md['Export (kWh)']||0;
                 const pvSavKwh = (md['Self-consumption (kWh)']||0) + (md['Battery to Load (kWh)']||0);
-                const bs = calcBlockSavings(load, gi, exp, pvSavKwh);
+                const pvGenT = md['PV Yield (kWh)']||0;
+                const bs = calcBlockSavings(load, gi, exp, pvSavKwh, pvGenT);
                 bs.blockSavings.forEach((b,i) => { blockPV[i] += b.cost; blockExp[i] += (b.exportCost||0); });
                 pvSavArr.push(bs.pvSavings);
                 expSavArr.push(bs.exportIncome);
