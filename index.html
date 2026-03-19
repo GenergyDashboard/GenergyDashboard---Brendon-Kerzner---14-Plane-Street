@@ -5723,7 +5723,7 @@
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:2,color:LIME,space:6}},spacing:{before:150}}));
             ['PREPARED FOR: CLIENT','SITE: 14 PLANE STREET','SYSTEM SIZE: VICTRON HYBRID + BATTERY',
              'DATE: '+now.getFullYear()+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+String(now.getDate()).padStart(2,'0'),
-             'PREPARED BY: BRANDON FEINAUER','CHECKED BY: BETHANY LAFFORD'
+             'PREPARED BY: BRANDON FEINAUER'
             ].forEach(d=>children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:20},children:[new D.TextRun({text:d,font:'Segoe UI',size:17,color:GRAY})]})));
             children.push(new D.Paragraph({alignment:D.AlignmentType.CENTER,border:{bottom:{style:D.BorderStyle.SINGLE,size:2,color:LIME,space:6}}}));
             children.push(new D.Paragraph({children:[new D.PageBreak()]}));
