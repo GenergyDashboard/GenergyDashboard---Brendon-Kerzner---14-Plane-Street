@@ -116,11 +116,15 @@ def main():
     # Today's hourly
     today_hourly = aggregate(today_raw, lambda ts: ts[:13]+":00:00")
     pv_h = [0.0]*24; ld_h = [0.0]*24; gi_h = [0.0]*24; bc_h = [0.0]*24; ex_h = [0.0]*24
+    pvc_h = [0.0]*24; pvb_h = [0.0]*24; gc_h = [0.0]*24; gb_h = [0.0]*24; bg_h = [0.0]*24
     for k, v in today_hourly.items():
         h = int(k[11:13])
         pv_h[h] = round(v["pv_total"],3); ld_h[h] = round(v["load"],3)
         gi_h[h] = round(v["grid_import"],3); bc_h[h] = round(v["batt_to_cons"],3)
         ex_h[h] = round(v["export"],3)
+        pvc_h[h] = round(v.get("pv_to_cons",0),3); pvb_h[h] = round(v.get("pv_to_batt",0),3)
+        gc_h[h] = round(v.get("grid_to_cons",0),3); gb_h[h] = round(v.get("grid_to_batt",0),3)
+        bg_h[h] = round(v.get("batt_to_grid",0),3)
     current_hour = max((int(k[11:13]) for k in today_hourly.keys()), default=0)
 
     # Average hourly profiles (MTD for current month)
@@ -174,7 +178,9 @@ def main():
             "grid_to_batt": round(d_data["grid_to_batt"],2),
         }
         # Hourly breakdown for this day
-        day_hourly = {"pv":[0]*24, "load":[0]*24, "grid":[0]*24, "batt":[0]*24, "export":[0]*24}
+        day_hourly = {"pv":[0]*24, "load":[0]*24, "grid":[0]*24, "batt":[0]*24, "export":[0]*24,
+                      "pv_to_cons":[0]*24, "pv_to_batt":[0]*24, "grid_to_cons":[0]*24,
+                      "grid_to_batt":[0]*24, "batt_to_grid":[0]*24}
         for k, v in hourly_all.items():
             if k[:10] == d_date:
                 h = int(k[11:13])
@@ -183,6 +189,11 @@ def main():
                 day_hourly["grid"][h] = round(v["grid_import"],3)
                 day_hourly["batt"][h] = round(v["batt_to_cons"],3)
                 day_hourly["export"][h] = round(v["export"],3)
+                day_hourly["pv_to_cons"][h] = round(v.get("pv_to_cons",0),3)
+                day_hourly["pv_to_batt"][h] = round(v.get("pv_to_batt",0),3)
+                day_hourly["grid_to_cons"][h] = round(v.get("grid_to_cons",0),3)
+                day_hourly["grid_to_batt"][h] = round(v.get("grid_to_batt",0),3)
+                day_hourly["batt_to_grid"][h] = round(v.get("batt_to_grid",0),3)
         rec["hourly"] = day_hourly
         daily_hist[d_date] = rec
 
@@ -213,6 +224,9 @@ def main():
             "pv": pv_h, "today": pv_h,
             "load": ld_h, "grid": gi_h,
             "batt": bc_h, "export": ex_h,
+            "pv_to_cons": pvc_h, "pv_to_batt": pvb_h,
+            "grid_to_cons": gc_h, "grid_to_batt": gb_h,
+            "batt_to_grid": bg_h,
             "current_hour": current_hour,
             "avg_load": avg_load, "avg_grid": avg_grid, "avg_pv": avg_pv,
         },
