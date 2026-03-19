@@ -65,6 +65,14 @@
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
 
 
+
+        /* SHARP TEXT RENDERING */
+        canvas { -webkit-font-smoothing: antialiased; }
+        .chart-container, .env-table, .slab, .flow-line, .env-box {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
         /* ══════════════════════════════════════════════════ */
         /* CHART TEXT CLARITY OVERRIDE                        */
         /* ══════════════════════════════════════════════════ */
@@ -3837,7 +3845,10 @@
             const pipeHour = dashData.hourly?.current_hour;
             const currentHour = (pipeHour !== undefined) ? pipeHour : now.getHours();
             const daysInMonth = new Date(yr, mo, 0).getDate();
-            const numDays = isCurrentMonth ? now.getDate() : daysInMonth;
+            let numDays = isCurrentMonth ? now.getDate() : daysInMonth;
+            // Ensure we include today even if dailyHist hasn't been updated yet
+            const todayDate = dashData?.today?.date;
+            const todayInMonth = todayDate && todayDate.startsWith(ym);
 
             document.getElementById('monthlyStatus').textContent = isCurrentMonth ? `Data to day ${numDays}, hour ${currentHour}:00` : `Full month (${daysInMonth} days)`;
 
@@ -3979,7 +3990,19 @@
             const dailyData = [];
             for (let d = 1; d <= numDays; d++) {
                 const dateStr = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
-                const dh = dailyHist?.[dateStr];
+                let dh = dailyHist?.[dateStr];
+                // Fallback: use dashData.today for the today date
+                if (!dh && dateStr === todayDate) {
+                    const td = dashData.today?.data || {};
+                    dh = {
+                        pv: td['PV Yield (kWh)']||0,
+                        consumption: td['Consumption (kWh)']||0,
+                        import: td['Import (kWh)']||0,
+                        export: td['Export (kWh)']||0,
+                        self_consumption: td['Self-consumption (kWh)']||0,
+                        batt_to_cons: td['Battery to Load (kWh)']||0
+                    };
+                }
                 const mmdd = mm+'-'+String(d).padStart(2,'0');
                 const dayPvs = getPvsystDay(mmdd);
                 let dayExpPV;
@@ -4508,7 +4531,7 @@
                 ]},
                 options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
                     plugins:{legend:{labels:{color:'#ddd',font:{size:cm.tickFont}}},tooltip:{backgroundColor:'rgba(0,0,0,0.85)',cornerRadius:10,padding:cm.tooltipPad,callbacks:{label:c=>c.dataset.label+': R'+Math.round(c.parsed.y)}}},
-                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#eee'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700'},title:{display:true,text:'Cumulative (R)',color:'#ffd700'}}}}
+                    scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.08)'},ticks:{color:'#d0d0d0'},title:{display:true,text:'Rands (R)',color:'#eee'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#ffd700',font:{size:14}},title:{display:true,text:'Cumulative (R)',color:'#ffd700',font:{size:14}}}}}
             });
 
             // Cost comparison chart
@@ -4573,7 +4596,11 @@
             for (let d = 1; d <= numDays; d++) {
                 labels.push(String(d));
                 const dateStr = String(yr)+'-'+mm+'-'+String(d).padStart(2,'0');
-                const dh = dailyHist?.[dateStr];
+                let dh = dailyHist?.[dateStr];
+                if (!dh && dateStr === (dashData?.today?.date)) {
+                    const td = dashData.today?.data || {};
+                    dh = { pv: td['PV Yield (kWh)']||0, consumption: td['Consumption (kWh)']||0, import: td['Import (kWh)']||0, export: td['Export (kWh)']||0 };
+                }
                 if (dh) {
                     const dayLoad = dh.consumption || 0;
                     const dayGI = dh.import || 0;
