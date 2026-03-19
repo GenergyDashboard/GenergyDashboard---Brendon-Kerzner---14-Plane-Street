@@ -1841,8 +1841,8 @@
             thresh_pv_good: 95,
             thresh_pv_neutral: 80,
             // Performance thresholds (Coverage: higher=better)
-            thresh_cov_good: 60,
-            thresh_cov_neutral: 40,
+            thresh_cov_good: 30,
+            thresh_cov_neutral: 10,
             // Performance thresholds (Load/Grid inverted: lower=better)
             thresh_inv_good: 105,
             thresh_inv_neutral: 115,
@@ -1863,6 +1863,9 @@
             const saved = localStorage.getItem('nautica-calc-config');
             if (saved) Object.assign(CC, JSON.parse(saved));
         } catch(e) {}
+        // Force correct coverage thresholds (block tariff site)
+        CC.thresh_cov_good = 30;
+        CC.thresh_cov_neutral = 10;
         function saveCalcConfig() { localStorage.setItem('nautica-calc-config', JSON.stringify(CC)); }
 
         // ENV object now reads from CC
@@ -5561,14 +5564,36 @@
             }
         }
 
-        // Directly capture a Chart.js canvas by ID — no html2canvas needed
-        function captureChartCanvas(canvasId) {
+        // Directly capture a Chart.js canvas by ID — enables legend for report
+        async function captureChartCanvas(canvasId) {
             const canvas = document.getElementById(canvasId);
-            if (!canvas || !canvas.getContext) return Promise.resolve(null);
-            return new Promise(r => canvas.toBlob(b => {
-                if (!b) { r(null); return; }
-                b.arrayBuffer().then(ab => r(new Uint8Array(ab)));
-            }, 'image/png'));
+            if (!canvas || !canvas.getContext) return null;
+            // Find the Chart.js instance and enable legend temporarily
+            const chartInstance = Chart.getChart(canvas);
+            let legendWasHidden = false;
+            if (chartInstance && chartInstance.options.plugins.legend) {
+                legendWasHidden = chartInstance.options.plugins.legend.display === false;
+                if (legendWasHidden) {
+                    chartInstance.options.plugins.legend.display = true;
+                    chartInstance.options.plugins.legend.labels = Object.assign(
+                        chartInstance.options.plugins.legend.labels || {},
+                        { color: '#333', font: { size: 12, weight: 'bold' }, padding: 15 }
+                    );
+                    chartInstance.update('none');
+                    await new Promise(r => setTimeout(r, 200));
+                }
+            }
+            return new Promise(r => {
+                canvas.toBlob(b => {
+                    // Restore legend state
+                    if (chartInstance && legendWasHidden) {
+                        chartInstance.options.plugins.legend.display = false;
+                        chartInstance.update('none');
+                    }
+                    if (!b) { r(null); return; }
+                    b.arrayBuffer().then(ab => r(new Uint8Array(ab)));
+                }, 'image/png');
+            });
         }
 
         // Show a tab off-screen, render it, capture charts + DOM elements, restore
@@ -5649,6 +5674,7 @@
             statusEl.textContent = 'Capturing Monthly...';
             const mCaps = await captureTab('monthly', () => renderMonthlyTab(ym),
                 { chart: 'monthlyDailyChart', touChart: 'monthlyTOUChart' }, {});
+            // Fallback: if chart capture has no legend, the Chart.js legend is now enabled during capture
 
             // Lifetime tab — force 12M range before capturing
             statusEl.textContent = 'Capturing Lifetime (12M)...';
@@ -5842,7 +5868,7 @@
             children.push(h2('Monthly Generation Breakdown'));
             children.push(img(lCaps.genChart, 700, 320));
             children.push(sp(60));
-            children.push(new D.Paragraph({children:[new D.PageBreak()]}));
+            children.push(sp(120));
 
             // ════ FINANCIAL ════
             children.push(h1('4. Financial Overview'));
@@ -5852,7 +5878,7 @@
                 const blkNames=['Block 1 (0–50)','Block 2 (51–350)','Block 3 (351–600)','Block 4 (600+)'];
                 const fRows=[row(hdr('Block',fC[0]),hdr('Generation',fC[1]),hdr('Utility Cost',fC[2]),hdr('PV Savings',fC[3]),hdr('Export Savings',fC[4]),hdr('Total Savings',fC[5]))];
                 sav.blockSavings.forEach((b,i)=>{
-                    const genKwh=(b.kwh||0)+(b.exportKwh||0);
+                    const genKwh=b.genKwh||((b.kwh||0)+(b.exportKwh||0));
                     const fl=i%2===0?undefined:LIGHT;
                     fRows.push(row(cel(blkNames[i],fC[0],{bold:true,align:D.AlignmentType.LEFT,fill:fl}),cel(fN(genKwh)+' kWh',fC[1],{fill:fl}),cel('R'+fN(b.gridCost||0),fC[2],{fill:fl}),cel('R'+fN(b.cost),fC[3],{fill:fl,color:GREEN}),cel('R'+fN(b.exportCost||0),fC[4],{fill:fl,color:'2563EB'}),cel('R'+fN(b.cost+(b.exportCost||0)),fC[5],{fill:fl,bold:true,color:GREEN})));
                 });
@@ -5865,7 +5891,7 @@
             children.push(sp(60));
             children.push(h2('Monthly Cost: With vs Without Solar'));
             children.push(img(fCaps.genChart, 700, 320));
-            children.push(new D.Paragraph({children:[new D.PageBreak()]}));
+            children.push(sp(120));
 
             // ════ WARRANTIES ════
             children.push(h1('5. System Warranties'));
