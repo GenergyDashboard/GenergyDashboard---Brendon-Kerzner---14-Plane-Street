@@ -1873,8 +1873,6 @@
         // Force correct coverage thresholds (block tariff site)
         CC.thresh_cov_good = 30;
         CC.thresh_cov_neutral = 10;
-        // Refresh block tariff from CC (in case rates were edited)
-        BLOCK_TARIFF = getBlockTariff();
         function saveCalcConfig() { localStorage.setItem('nautica-calc-config', JSON.stringify(CC)); }
 
         // ENV object now reads from CC
