@@ -67,6 +67,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/dashboard_data.json data/irradiation_data.json data/Monthly_Data_Excluding_today.xlsx || true
+          git add data/daily_history.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "Update solar data $(date +'%Y-%m-%d %H:%M') SAST"
           git push
