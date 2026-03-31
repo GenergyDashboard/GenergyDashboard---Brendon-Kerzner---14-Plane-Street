@@ -244,10 +244,65 @@ def main():
     with open(args.output, "w") as f:
         json.dump(output, f, separators=(",", ":"))
 
-    # Also write daily_history.json (separate file like Nautica)
+    # Also write daily_history.json — MERGE with existing to accumulate over time
     hist_path = os.path.join(os.path.dirname(args.output), "daily_history.json")
+    
+    # Load existing daily_history if it exists
+    existing_hist = {}
+    if os.path.exists(hist_path):
+        try:
+            with open(hist_path) as f:
+                existing_hist = json.load(f)
+            print(f"  Loaded existing daily_history: {len(existing_hist)} days")
+        except Exception as e:
+            print(f"  Warning: could not load existing daily_history: {e}")
+    
+    # Merge: new data overwrites existing for the same date
+    merged_hist = dict(existing_hist)
+    for d_date, d_rec in daily_hist.items():
+        merged_hist[d_date] = d_rec
+    
+    # Also add today's data as a daily record (so it persists even without lifetime XLSX update)
+    if today_date and today_date not in merged_hist:
+        today_rec = {
+            "pv": round(today_agg["pv_total"],2),
+            "consumption": round(today_agg["load"],2),
+            "import": round(today_agg["grid_import"],2),
+            "export": round(today_agg["export"],2),
+            "self_consumption": round(today_agg["pv_to_cons"],2),
+            "batt_to_cons": round(today_agg["batt_to_cons"],2),
+            "pv_to_batt": round(today_agg["pv_to_batt"],2),
+            "batt_to_grid": round(today_agg["batt_to_grid"],2),
+            "grid_to_batt": round(today_agg["grid_to_batt"],2),
+        }
+        # Build today's hourly
+        today_hourly_rec = {"pv":[0]*24, "load":[0]*24, "grid":[0]*24, "batt":[0]*24, "export":[0]*24,
+                            "pv_to_cons":[0]*24, "pv_to_batt":[0]*24, "grid_to_cons":[0]*24,
+                            "grid_to_batt":[0]*24, "batt_to_grid":[0]*24}
+        for k, v in today_hourly.items():
+            h = int(k[11:13])
+            today_hourly_rec["pv"][h] = round(v["pv_total"],3)
+            today_hourly_rec["load"][h] = round(v["load"],3)
+            today_hourly_rec["grid"][h] = round(v["grid_import"],3)
+            today_hourly_rec["batt"][h] = round(v.get("batt_to_cons",0),3)
+            today_hourly_rec["export"][h] = round(v["export"],3)
+            today_hourly_rec["pv_to_cons"][h] = round(v.get("pv_to_cons",0),3)
+            today_hourly_rec["pv_to_batt"][h] = round(v.get("pv_to_batt",0),3)
+            today_hourly_rec["grid_to_cons"][h] = round(v.get("grid_to_cons",0),3)
+            today_hourly_rec["grid_to_batt"][h] = round(v.get("grid_to_batt",0),3)
+            today_hourly_rec["batt_to_grid"][h] = round(v.get("batt_to_grid",0),3)
+        today_rec["hourly"] = today_hourly_rec
+        merged_hist[today_date] = today_rec
+        print(f"  Added today ({today_date}) to daily_history")
+    elif today_date:
+        # Update today's record (may have more hours now)
+        merged_hist[today_date] = daily_hist.get(today_date, merged_hist[today_date])
+    
     with open(hist_path, "w") as f:
-        json.dump(daily_hist, f, separators=(",", ":"))
+        json.dump(merged_hist, f, separators=(",", ":"))
+    
+    new_days = len(merged_hist) - len(existing_hist)
+    print(f"  Daily history: {len(merged_hist)} total days ({'+' if new_days >= 0 else ''}{new_days} new)")
 
     sz1 = os.path.getsize(args.output)/1024
     sz2 = os.path.getsize(hist_path)/1024
